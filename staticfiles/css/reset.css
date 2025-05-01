@@ -1,0 +1,153 @@
+/* ==================== */
+/* CSS RESET & BASE STYLES */
+/* ==================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ==================== */
+/* DESIGN SYSTEM TOKENS */
+/* ==================== */
+:root {
+  /* Color Palette */
+  --bg-color: #181f36;
+  --div-color: #2d2f45;
+  --div-element: #474c75;
+  
+  /* Text Colors */
+  --text-color: #eeeeffdc;
+  --text-light: #ffffff;
+  --text-muted: #b8b8d1;
+  
+  /* Accent Colors */
+  --highlight-color: #f9b17a;
+  --highlight-secondary: #f8956a;
+  
+  /* Status Colors */
+  --success-color: #4CAF50;
+  --warning-color: #FFC107;
+  --error-color: #FF5722;
+  --info-color: #2196F3;
+  
+  /* Gradients */
+  --gradient-highlight: linear-gradient(135deg, var(--highlight-color) 0%, var(--highlight-secondary) 100%);
+  --gradient-success: linear-gradient(135deg, var(--success-color) 0%, #45a049 100%);
+  --gradient-bg: linear-gradient(135deg, #1a1d2b 0%, #2d3250 100%);
+  
+  /* Transparent Variants */
+  --div-color-80: rgba(45, 47, 69, 0.8);
+  --div-element-30: rgba(71, 76, 117, 0.3);
+  --highlight-15: rgba(249, 177, 122, 0.15);
+  --success-20: rgba(76, 175, 80, 0.2);
+  --warning-20: rgba(255, 193, 7, 0.2);
+  --error-20: rgba(255, 87, 34, 0.2);
+  
+  /* Borders */
+  --border-light: 1px solid rgba(255, 255, 255, 0.1);
+  --border-radius-sm: 4px;
+  --border-radius: 8px;
+  --border-radius-lg: 12px;
+}
+
+/* ==================== */
+/* BASE ELEMENT STYLES */
+/* ==================== */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--gradient-bg);
+  color: var(--text-color);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Forms */
+button {
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  background-color: var(--div-element);
+  border: var(--border-light);
+  border-radius: var(--border-radius);
+}
+
+input::placeholder {
+  color: var(--text-muted);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--highlight-color);
+  box-shadow: 0 0 0 3px var(--highlight-15);
+}
+
+/* Links */
+a {
+  color: var(--highlight-color);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--highlight-secondary);
+}
+
+/* Interactive Elements */
+:focus-visible {
+  outline: 2px solid var(--highlight-color);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar-track {
+  background: var(--div-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--div-element);
+  border-radius: var(--border-radius-lg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--highlight-color);
+}
+
+/* ==================== */
+/* UTILITY CLASSES */
+/* ==================== */
+
+/* Buttons */
+.btn-primary {
+  background: var(--gradient-highlight);
+  color: var(--bg-color);
+}
+
+.btn-secondary {
+  background: var(--div-element);
+  color: var(--text-light);
+}
+
+/* Messages */
+.alert-error {
+  background: var(--error-20);
+  color: var(--error-color);
+}
+
+.alert-success {
+  background: var(--success-20);
+  color: var(--success-color);
+}
+
+.alert-info {
+  background: var(--highlight-15);
+  color: var(--highlight-color);
+}

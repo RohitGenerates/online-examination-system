@@ -1,0 +1,136 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Exam Questions</title>
+    <link rel="stylesheet" href="{% static 'css/reset.css' %}">
+    <link rel="stylesheet" href="{% static 'css/create-exam.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <div class="exam-creation-container">
+        <div class="exam-header">
+            <div class="header-actions">
+                <button id="backToDashboardTop" class="btn secondary-btn">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </button>
+            </div>
+            <h2 id="examTitleDisplay">New Exam</h2>
+            <div class="exam-meta">
+                <span id="examSubjectDisplay">Subject: </span>
+                <span id="examDurationDisplay">Duration: </span>
+                <span id="totalQuestionsDisplay">Questions: </span>
+            </div>
+        </div>
+
+        <div class="question-editor">
+            <div class="question-number">Question <span id="currentQuestionNumber">1</span></div>
+            
+            <div class="question-input">
+                <textarea id="questionText" placeholder="Enter question text..."></textarea>
+            </div>
+            
+            <div class="answer-options">
+                <div class="answer-option">
+                    <span class="option-letter">A</span>
+                    <input type="text" class="option-input" placeholder="Option A">
+                    <button class="set-correct-btn">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    <button class="remove-option">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="answer-option">
+                    <span class="option-letter">B</span>
+                    <input type="text" class="option-input" placeholder="Option B">
+                    <button class="set-correct-btn">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    <button class="remove-option">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="answer-option">
+                    <span class="option-letter">C</span>
+                    <input type="text" class="option-input" placeholder="Option C">
+                    <button class="set-correct-btn">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    <button class="remove-option">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="answer-option">
+                    <span class="option-letter">D</span>
+                    <input type="text" class="option-input" placeholder="Option D">
+                    <button class="set-correct-btn">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    <button class="remove-option">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="question-actions">
+                <button id="addOptionBtn" class="btn secondary-btn">
+                    <i class="fas fa-plus"></i> Add Option
+                </button>
+            </div>
+        </div>
+
+        <div class="navigation-controls">
+            <button id="prevQuestion" class="btn" disabled>
+                <i class="fas fa-arrow-left"></i> Previous
+            </button>
+            <button id="nextQuestion" class="btn primary-btn">
+                Next <i class="fas fa-arrow-right"></i>
+            </button>
+            <!-- <button id="saveQuestion" class="btn secondary-btn">
+                <i class="fas fa-save"></i> Save Question
+            </button> -->
+        </div>
+
+        <div class="progress-indicator">
+            <div class="progress-bar" id="progressBar"></div>
+            <div class="question-count" id="questionCountDisplay">1 of 10</div>
+        </div>
+
+        <div class="final-actions" id="finalActions" style="display:none;">
+            <button id="createExamBtn" class="btn primary-btn">
+                <i class="fas fa-check-circle"></i> Create Exam
+            </button>
+        </div>
+    </div>
+
+    <div id="completionScreen" style="display:none;">
+        <div class="completion-message">
+            <i class="fas fa-check-circle"></i>
+            <h2>Exam Draft Saved!</h2>
+            <p>You can continue editing later or submit when ready.</p>
+            <button id="backToDashboard" class="btn primary-btn">
+                Return to Dashboard
+            </button>
+        </div>
+    </div>
+
+    <div id="successModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <i class="fas fa-check-circle success-icon"></i>
+            <h3>Exam Created Successfully!</h3>
+            <p>Your exam is now available for students.</p>
+            <button id="backToDashboard" class="btn primary-btn">
+                <i class="fas fa-home"></i> Back to Dashboard
+            </button>
+        </div>
+    </div>
+
+    <script src="{% static 'js/create-exam.js' %}"></script>
+</body>
+</html>

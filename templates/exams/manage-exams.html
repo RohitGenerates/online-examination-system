@@ -1,0 +1,99 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Exam</title>
+    <link rel="stylesheet" href="{% static 'css/reset.css' %}">
+    <link rel="stylesheet" href="{% static 'css/manage-exams.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <div class="exam-management-container">
+        <div class="exam-header">
+            <div class="exam-title-edit">
+                <input type="text" id="editExamTitle" value="Exam Title">
+            </div>
+            <div class="exam-meta-edit">
+                <div class="form-group">
+                    <label>Subject</label>
+                    <input type="text" id="editExamSubject" value="Mathematics">
+                </div>
+                <div class="form-group">
+                    <label>Duration (mins)</label>
+                    <input type="number" id="editExamDuration" value="60">
+                </div>
+                <div class="form-group">
+                    <label>Total Marks</label>
+                    <input type="number" id="editExamTotalMarks" value="100" readonly>
+                </div>
+            </div>
+        </div>
+
+        <div class="exam-controls">
+            <button id="resetBtn" class="btn secondary-btn">
+                <i class="fas fa-undo"></i> Reset Changes
+            </button>
+            <button id="saveBtn" class="btn primary-btn">
+                <i class="fas fa-save"></i> Save Exam
+            </button>
+            <button id="backBtn" class="btn secondary-btn">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </button>
+        </div>
+
+        <div class="question-navigation">
+            <span class="question-counter">Question <span id="currentQuestionNumber">1</span></span>
+        </div>
+
+        <div class="question-editor">
+            <div class="question-input">
+                <textarea id="questionText" placeholder="Enter question text..."></textarea>
+            </div>
+            
+            <div class="options-container">
+                <div class="option-item" data-option="A">
+                    <div class="option-content">
+                        <span class="option-label">A</span>
+                        <input type="text" class="option-input" placeholder="Option A">
+                        <button class="remove-option">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <button class="set-correct-btn">Set as Correct</button>
+                </div>
+                <!-- Options B-D will be generated similarly in JS -->
+            </div>
+
+            <div class="question-actions">
+                <button id="addOptionBtn" class="btn secondary-btn">
+                    <i class="fas fa-plus"></i> Add Option
+                </button>
+                <button id="deleteQuestionBtn" class="btn secondary-btn">
+                    <i class="fas fa-trash"></i> Delete Question
+                </button>
+                <button id="addQuestionBtn" class="btn primary-btn">
+                    <i class="fas fa-plus-circle"></i> Add New Question
+                </button>
+            </div>
+        </div>
+
+        <div class="question-navigation">
+            <div class="nav-arrows">
+                <button id="prevQuestion">← Previous</button>
+                <button id="nextQuestion">Next →</button>
+            </div>
+        </div>
+
+        <div class="progress-indicator">
+            <div class="progress-bar" id="progressBar"></div>
+            <div class="question-count" id="questionCountDisplay">1 of 10</div>
+        </div>
+    </div>
+
+    <div id="toastContainer"></div>
+
+    <script src="{% static 'js/manage-exams.js' %}"></script>
+</body>
+</html>

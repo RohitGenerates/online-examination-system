@@ -1,0 +1,62 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
+    <title>Login</title>
+    <link rel="stylesheet" href="{% static 'css/reset.css' %}">
+    <link rel="stylesheet" href="{% static 'css/login.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h2>Select User</h2>
+        </div>
+        <div class="user-types">
+            <div class="user-type" data-type="student">
+                <div class="icon-circle">
+                    <i class="fas fa-user-graduate"></i>
+                </div>
+                <span>Student</span>
+            </div>
+            <div class="user-type" data-type="teacher">
+                <div class="icon-circle">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                </div>
+                <span>Teacher</span>
+            </div>
+            <div class="user-type" data-type="admin">
+                <div class="icon-circle">
+                    <i class="fas fa-user-cog"></i>
+                </div>
+                <span>Admin</span>
+            </div>
+        </div>
+        <form method="post" id="loginForm">
+            {% csrf_token %}
+            <input type="hidden" id="userType" name="userType" value="">
+            <div class="form-group">
+                <i class="fa-solid fa-envelope"></i>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required>
+            </div>
+            <div class="form-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                <button type="button" class="password-toggle" aria-label="Toggle password visibility">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+            </div>
+            <div id="error-message" class="error-message"></div>
+            <button type="submit" class="submit-btn">
+                Login <i class="fas fa-arrow-right"></i>
+            </button>
+        </form>
+        <div class="additional-links">
+            <a href="{% url 'accounts:signup' %}">Create Account</a>
+        </div>
+    </div>
+    <script src="{% static 'js/login.js' %}"></script>
+</body>
+</html>

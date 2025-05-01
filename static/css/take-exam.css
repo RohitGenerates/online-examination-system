@@ -1,0 +1,288 @@
+@import url('reset.css');
+
+body {
+    background: var(--gradient-bg);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.exam-container {
+    background: var(--div-color-80);
+    backdrop-filter: blur(10px);
+    padding: 2rem;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 800px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border: var(--border-light);
+}
+
+.exam-header {
+    color: var(--highlight-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: var(--border-light);
+}
+
+.timer {
+    font-size: 1.5rem;
+    font-weight: bold;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    background: var(--info-20);
+    border: 2px solid var(--info-color);
+    color: var(--info-color);
+    transition: background-color 0.3s ease;
+}
+
+.timer.warning {
+    background: var(--warning-20);
+    border-color: var(--warning-color);
+    color: var(--warning-color);
+}
+
+.timer.danger {
+    background: var(--error-20);
+    border-color: var(--error-color);
+    color: var(--error-color);
+}
+
+.question-container {
+    background: var(--div-element-30);
+    padding: 2rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+    border: var(--border-light);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.question-number {
+    color: var(--text-color);
+    margin-bottom: 1rem;
+}
+
+.question-content {
+    color: var(--text-color);
+    font-size: 1.2rem;
+    margin-bottom: 2rem;
+}
+
+.options-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.option {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    background: var(--div-color-80);
+    padding: 1rem;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    border: var(--border-light);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    color: var(--highlight-color);
+}
+
+.option:hover {
+    background: var(--highlight-15);
+    border-color: var(--highlight-color);
+    transform: translateY(-2px);
+}
+
+.option::before {
+    content: attr(data-letter);
+    font-weight: bold;
+    margin-right: 1rem;
+    color: var(--highlight-color);
+    font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+    .options-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+.option.selected {
+    background: var(--gradient-highlight);
+    color: var(--text-color);
+    border: none;
+    box-shadow: var(--shadow-accent);
+}
+
+.navigation-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.nav-btn {
+    background: var(--div-element-30);
+    color: var(--highlight-color);
+    border: var(--border-light);
+    padding: 0.8rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.nav-btn:hover {
+    background: var(--highlight-color);
+    color: var(--text-color);
+    box-shadow: var(--shadow-accent);
+}
+
+.question-dots {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--div-element-30);
+    cursor: pointer;
+    border: var(--border-light);
+}
+
+.dot.answered {
+    background: var(--gradient-success);
+    border: none;
+}
+
+.dot.current {
+    background: var(--gradient-highlight);
+    border: none;
+}
+
+.submit-btn {
+    width: 100%;
+    padding: 1rem;
+    background: var(--gradient-highlight);
+    color: var(--text-color);
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-accent);
+}
+
+.submit-btn:hover {
+    background: var(--gradient-success);
+    color: white;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    transform: translateY(-2px);
+}
+
+/* Instructions section styling */
+.instructions-content {
+    background: var(--div-element-30);
+    padding: 2rem;
+    border-radius: 12px;
+    color: var(--text-color);
+    border: var(--border-light);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.exam-info {
+    margin-bottom: 2rem;
+}
+
+.exam-info h2, .rules-list h2 {
+    color: var(--highlight-color);
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+}
+
+.exam-info p {
+    margin: 0.8rem 0;
+    color: var(--text-muted);
+}
+
+.exam-info i {
+    color: var(--highlight-color);
+    margin-right: 0.5rem;
+    width: 20px;
+}
+
+.rules-list ul {
+    list-style: none;
+    padding: 0;
+}
+
+.rules-list li {
+    padding: 0.5rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+    color: var(--text-muted);
+}
+
+.rules-list li::before {
+    content: "•";
+    color: var(--highlight-color);
+    position: absolute;
+    left: 0;
+}
+
+.start-btn {
+    display: block;
+    width: 200px;
+    margin: 2rem auto 0;
+    padding: 1rem;
+    background: var(--gradient-highlight);
+    color: var(--text-color);
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-accent);
+}
+
+.start-btn:hover {
+    background: linear-gradient(135deg, var(--highlight-secondary) 0%, var(--highlight-color) 100%);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(249, 177, 122, 0.4);
+}
+
+/* Draft saving indicator */
+.save-indicator {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--highlight-color);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    display: none;
+}
+
+/* Completion screen */
+.completion-message {
+    text-align: center;
+    max-width: 500px;
+    margin: 50px auto;
+    padding: 30px;
+    background: var(--div-color);
+    border-radius: 10px;
+}
+
+.completion-message i {
+    font-size: 4rem;
+    color: var(--success-color);
+    margin-bottom: 20px;
+}

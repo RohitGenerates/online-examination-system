@@ -1,0 +1,219 @@
+/* Import base styles */
+@import url('student-dashboard.css');
+@import url('reset.css');
+
+/* Admin-specific enhancements */
+.dashboard-options {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.welcome-message {
+    text-align: center;
+    padding: 2rem;
+    background-color: var(--div-color);
+    border-radius: 12px;
+    margin-top: 20px;
+}
+
+.welcome-message h2 {
+    color: var(--highlight-color);
+    margin-bottom: 1rem;
+}
+
+/* User management styles */
+.user-management-container {
+    background-color: var(--div-color);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.user-controls {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.search-container {
+    position: relative;
+    width: 300px;
+}
+
+.search-container i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-color);
+}
+
+.search-container input {
+    width: 100%;
+    padding: 10px 10px 10px 40px;
+    background-color: var(--div-element);
+    border: 1px solid var(--div-element);
+    border-radius: 8px;
+    color: var(--text-color);
+}
+
+.user-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.user-table th, .user-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid var(--div-element);
+}
+
+.user-table th {
+    background-color: var(--div-element);
+    color: var(--highlight-color);
+}
+
+.user-table tr:hover {
+    background-color: rgba(103, 111, 157, 0.1);
+}
+
+.user-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.edit-btn {
+    background-color: var(--highlight-color);
+    color: var(--text-color);
+}
+
+.delete-btn {
+    background-color: var(--error-color);
+    color: var(--text-color);
+}
+
+/* System logs styles */
+.logs-container {
+    background-color: var(--div-color);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.log-entry {
+    padding: 12px;
+    border-bottom: 1px solid var(--div-element);
+    font-family: monospace;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.log-info {
+    color: var(--success-color);
+}
+
+.log-warning {
+    color: var(--warning-color);
+}
+
+.log-error {
+    color: var(--error-color);
+}
+
+/* System settings styles */
+.settings-container {
+    background-color: var(--div-color);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.setting-item {
+    margin-bottom: 20px;
+}
+
+.setting-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--highlight-color);
+}
+
+.setting-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--div-element);
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: var(--text-color);
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: var(--highlight-color);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .user-controls {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .search-container {
+        width: 100%;
+    }
+    
+    .user-table {
+        display: block;
+        overflow-x: auto;
+    }
+}
