@@ -14,6 +14,13 @@ ROOT_URLCONF = 'exam_system.urls'
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
+# CSRF Settings
+CSRF_COOKIE_SAMESITE = None
+CSRF_COOKIE_HTTPONLY = False
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
+CSRF_COOKIE_SECURE = False  # Set to True in production
+SESSION_COOKIE_SECURE = False  # Set to True in production
+
 # Add your apps to INSTALLED_APPS
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -49,6 +56,7 @@ DATABASES = {
     }
 }
 
+# Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, '..', 'static'),  # Points to the root static directory

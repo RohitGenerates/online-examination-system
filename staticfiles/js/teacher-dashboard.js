@@ -61,84 +61,108 @@ $(document).ready(function() {
     function showWelcomeMessage() {
         $("#dynamicContentContainer").html(`
             <div class="welcome-message">
-                <h2>Welcome to Teacher Dashboard</h2>
+                <h2>Welcome, ${localStorage.getItem('username')}</h2>
                 <p>Select an option from the menu above to get started.</p>
             </div>
         `).slideDown(300);
     }
 
     function loadCreateExamForm() {
-        const formHTML = `
-            <div class="create-exam-container">
-                <h2>Create New Exam</h2>
-                <form id="createExamForm" class="exam-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <div class="input-with-icon">
-                                <i class="fas fa-heading"></i>
-                                <input type="text" id="examTitle" placeholder="Exam Title" required>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <div class="input-with-icon">
-                                <i class="fas fa-book"></i>
-                                <select id="subject" required>
-                                    <option value="">Select Subject</option>
-                                    <option value="cs">Computer Science</option>
-                                    <option value="it">Information Technology</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <div class="input-with-icon">
-                                <i class="fas fa-clock"></i>
-                                <input type="number" id="duration" min="15" placeholder="Duration (minutes)" required>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <div class="input-with-icon">
-                                <i class="fas fa-calendar-alt"></i>
-                                <input type="datetime-local" id="deadline" required>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <div class="input-with-icon">
-                                <i class="fas fa-question-circle"></i>
-                                <input type="number" id="totalQuestions" min="1" placeholder="Total Questions" required>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="form-actions">
-                        <button type="submit" class="btn primary-btn">
-                            <i class="fas fa-plus-circle"></i> Create Exam & Add Questions
-                        </button>
-                    </div>
-                </form>
-            </div>
-        `;
+        // Show loading state
+        $("#dynamicContentContainer").html('<div class="loading">Loading form...</div>').slideDown(300);
         
-        $("#dynamicContentContainer").html(formHTML).slideDown(300);
-        
-        // Set default deadline to tomorrow at 9 AM
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(9, 0, 0, 0);
-        const formattedDate = tomorrow.toISOString().slice(0, 16);
-        $("#deadline").val(formattedDate);
-        
-        // Form submission handler
-        $("#createExamForm").submit(function(e) {
-            e.preventDefault();
-            createExam();
+        // Fetch subjects from API
+        $.ajax({
+            url: '/api/subjects/',
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            success: function(response) {
+                if (response.success) {
+                    const subjects = response.data;
+                    let subjectOptions = '<option value="">Select Subject</option>';
+                    subjects.forEach(subject => {
+                        subjectOptions += `<option value="${subject.id}">${subject.name}</option>`;
+                    });
+
+                    const formHTML = `
+                        <div class="create-exam-container">
+                            <h2>Create New Exam</h2>
+                            <form id="createExamForm" class="exam-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-heading"></i>
+                                            <input type="text" id="examTitle" placeholder="Exam Title" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-book"></i>
+                                            <select id="subject" required>
+                                                ${subjectOptions}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-clock"></i>
+                                            <input type="number" id="duration" min="15" placeholder="Duration (minutes)" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-calendar-alt"></i>
+                                            <input type="datetime-local" id="deadline" required>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-question-circle"></i>
+                                            <input type="number" id="totalQuestions" min="1" placeholder="Total Questions" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-actions">
+                                    <button type="submit" class="btn primary-btn">
+                                        <i class="fas fa-plus-circle"></i> Create Exam & Add Questions
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    `;
+                    
+                    $("#dynamicContentContainer").html(formHTML);
+                    
+                    // Set default deadline to tomorrow at 9 AM
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    tomorrow.setHours(9, 0, 0, 0);
+                    const formattedDate = tomorrow.toISOString().slice(0, 16);
+                    $("#deadline").val(formattedDate);
+                    
+                    // Form submission handler
+                    $("#createExamForm").submit(function(e) {
+                        e.preventDefault();
+                        createExam();
+                    });
+                } else {
+                    showToast('Failed to load subjects: ' + response.message, 'error');
+                }
+            },
+            error: function(xhr, status, error) {
+                showToast('Error loading subjects: ' + error, 'error');
+            }
         });
     }
 
@@ -162,21 +186,29 @@ $(document).ready(function() {
         // Show loading state
         $(".primary-btn").html('<i class="fas fa-spinner fa-spin"></i> Creating...').prop('disabled', true);
         
-        // Simulate API call
-        setTimeout(() => {
-            console.log("Exam created:", examData);
-            
-            // After successful creation, redirect to question editor
-            redirectToQuestionEditor(examData);
-        }, 1000);
-    }
-
-    function redirectToQuestionEditor(examData) {
-        // Store exam data temporarily (in a real app, this would be saved to database)
-        sessionStorage.setItem('currentExam', JSON.stringify(examData));
-        
-        // Redirect to question editor page
-        window.location.href = '../../templates/exams/create-exam.html';
+        // Make API call to create exam
+        $.ajax({
+            url: '/api/exams/create/',
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            data: examData,
+            success: function(response) {
+                if (response.success) {
+                    showToast('Exam created successfully!', 'success');
+                    // After successful creation, redirect to question editor
+                    window.location.href = `/exams/manage/${response.data.exam_id}/`;
+                } else {
+                    showToast('Failed to create exam: ' + response.message, 'error');
+                    $(".primary-btn").html('<i class="fas fa-plus-circle"></i> Create Exam & Add Questions').prop('disabled', false);
+                }
+            },
+            error: function(xhr, status, error) {
+                showToast('Error creating exam: ' + error, 'error');
+                $(".primary-btn").html('<i class="fas fa-plus-circle"></i> Create Exam & Add Questions').prop('disabled', false);
+            }
+        });
     }
 
     function showMessage(message, type) {
@@ -214,31 +246,29 @@ $(document).ready(function() {
     }
 
     function fetchExams() {
-        // Simulated API call
-        setTimeout(() => {
-            const dummyExams = [
-                {
-                    id: 1,
-                    title: "Midterm Examination",
-                    subject: "Computer Science",
-                    duration: 60,
-                    totalQuestions: 30,
-                    deadline: "2025-04-25T14:00:00",
-                    status: "active"
-                },
-                {
-                    id: 2,
-                    title: "Final Assessment",
-                    subject: "Information Technology",
-                    duration: 120,
-                    totalQuestions: 50,
-                    deadline: "2025-05-05T11:00:00",
-                    status: "draft"
+        // Show loading state
+        $(".exam-list").html('<div class="loading">Loading exams...</div>');
+        
+        // Make API call to fetch exams
+        $.ajax({
+            url: '/api/exams/',
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            success: function(response) {
+                if (response.success) {
+                    displayExams(response.data);
+                } else {
+                    showToast('Failed to fetch exams: ' + response.message, 'error');
+                    $(".exam-list").html('<div class="no-exams">Failed to load exams.</div>');
                 }
-            ];
-            
-            displayExams(dummyExams);
-        }, 800);
+            },
+            error: function(xhr, status, error) {
+                showToast('Error fetching exams: ' + error, 'error');
+                $(".exam-list").html('<div class="no-exams">Error loading exams.</div>');
+            }
+        });
     }
 
     function displayExams(exams) {
@@ -323,15 +353,39 @@ $(document).ready(function() {
     }
 
     function loadResultsData() {
-        // In a real app, this would be an API call
-        const dummyResults = [
-            { student: "John Doe", exam: "Midterm Exam", score: "85%", date: "2025-04-20" },
-            { student: "Jane Smith", exam: "Midterm Exam", score: "92%", date: "2025-04-20" },
-            { student: "Alex Johnson", exam: "Final Exam", score: "78%", date: "2025-05-10" }
-        ];
+        // Show loading state
+        $(".results-container").html('<div class="loading">Loading results...</div>');
         
+        // Make API call to fetch student results
+        $.ajax({
+            url: '/api/student-results/',
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            success: function(response) {
+                if (response.success) {
+                    displayResults(response.data);
+                } else {
+                    showToast('Failed to fetch results: ' + response.message, 'error');
+                    $(".results-container").html('<div class="no-results">Failed to load results.</div>');
+                }
+            },
+            error: function(xhr, status, error) {
+                showToast('Error fetching results: ' + error, 'error');
+                $(".results-container").html('<div class="no-results">Error loading results.</div>');
+            }
+        });
+    }
+
+    function displayResults(results) {
+        if (!results || results.length === 0) {
+            $(".results-table tbody").html('<tr><td colspan="4" class="no-results">No results found.</td></tr>');
+            return;
+        }
+
         let tableHTML = '';
-        dummyResults.forEach(result => {
+        results.forEach(result => {
             tableHTML += `
                 <tr>
                     <td>${result.student}</td>
@@ -375,6 +429,44 @@ $(document).ready(function() {
         });
     }
 
+    function generateReport(reportType) {
+        // Show loading state
+        $(".report-card").prop('disabled', true);
+        
+        // Make API call to generate report
+        $.ajax({
+            url: `/api/reports/${reportType}/`,
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Handle report data based on type
+                    switch(reportType) {
+                        case 'performance':
+                            displayPerformanceReport(response.data);
+                            break;
+                        case 'attendance':
+                            displayAttendanceReport(response.data);
+                            break;
+                        case 'analysis':
+                            displayQuestionAnalysis(response.data);
+                            break;
+                    }
+                } else {
+                    showToast('Failed to generate report: ' + response.message, 'error');
+                }
+            },
+            error: function(xhr, status, error) {
+                showToast('Error generating report: ' + error, 'error');
+            },
+            complete: function() {
+                $(".report-card").prop('disabled', false);
+            }
+        });
+    }
+
     function loadProfileForm() {
         $("#dynamicContentContainer").html(`
             <div class="profile-container">
@@ -383,43 +475,33 @@ $(document).ready(function() {
                     <div class="form-group form-full-width">
                         <div class="input-with-icon">
                             <i class="fas fa-user"></i>
-                            <input type="text" id="fullName" name="fullName" placeholder="Full Name" required>
+                            <input type="text" id="teacherName" name="name" placeholder="Full Name" required>
                         </div>
                     </div>
                     <div class="form-group">
                         <div class="input-with-icon">
                             <i class="fas fa-envelope"></i>
-                            <input type="email" id="email" name="email" placeholder="Email Address" required readonly>
+                            <input type="email" id="teacherEmail" name="email" placeholder="Email Address" required readonly>
                         </div>
                     </div>
                     <div class="form-group">
                         <div class="input-with-icon">
                             <i class="fas fa-phone"></i>
-                            <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="Phone Number" pattern="[0-9]{10}" required>
+                            <input type="tel" id="teacherPhone" name="phone" placeholder="Phone Number" pattern="[0-9]{10}" required>
                         </div>
                     </div>
                     <div class="form-group">
                         <div class="input-with-icon">
                             <i class="fas fa-building"></i>
-                            <select id="department" name="department" required>
-                                <option value="">Select Department</option>
-                                <option value="CS">Computer Science</option>
-                                <option value="IT">Information Technology</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <div class="input-with-icon">
-                            <i class="fas fa-id-card"></i>
-                            <input type="text" id="teacherId" name="teacherId" placeholder="Teacher ID" readonly>
+                            <input type="text" id="teacherDepartment" name="department" placeholder="Department" required>
                         </div>
                     </div>
                     <div class="form-actions form-full-width">
-                        <button type="button" class="btn reset-btn" id="resetForm" style="display: none;">Reset Changes</button>
-                        <button type="submit" class="btn primary-btn" id="saveChanges" disabled>Save Changes</button>
+                        <button type="submit" class="btn primary-btn save-profile-btn">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
                     </div>
                 </form>
-                <div id="profileUpdateMessage" class="message-container"></div>
             </div>
         `).slideDown(300);
 
@@ -428,42 +510,34 @@ $(document).ready(function() {
     }
 
     function loadProfileData() {
-        // Simulated API call
-        setTimeout(() => {
-            const dummyProfile = {
-                fullName: "Prof. Smith",
-                email: "prof.smith@university.edu",
-                phoneNumber: "1234567890",
-                department: "CS",
-                teacherId: "TEA-1001"
-            };
-            
-            $("#fullName").val(dummyProfile.fullName);
-            $("#email").val(dummyProfile.email);
-            $("#phoneNumber").val(dummyProfile.phoneNumber);
-            $("#department").val(dummyProfile.department);
-            $("#teacherId").val(dummyProfile.teacherId);
-            
-            originalProfileData = {
-                fullName: dummyProfile.fullName,
-                phoneNumber: dummyProfile.phoneNumber,
-                department: dummyProfile.department
-            };
-            
-            checkFormChanges();
-        }, 500);
+        // Show loading state
+        $("#profileForm").html('<div class="loading">Loading profile...</div>');
+        
+        // Make API call to fetch teacher profile
+        $.ajax({
+            url: '/api/teacher/profile/',
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            success: function(response) {
+                if (response.success) {
+                    originalProfileData = response.data;
+                    displayProfileData(response.data);
+                } else {
+                    showToast('Failed to load profile: ' + response.message, 'error');
+                    $("#profileForm").html('<div class="error">Failed to load profile.</div>');
+                }
+            },
+            error: function(xhr, status, error) {
+                showToast('Error loading profile: ' + error, 'error');
+                $("#profileForm").html('<div class="error">Error loading profile.</div>');
+            }
+        });
     }
 
     function setupProfileFormHandlers() {
         $("#teacherProfileForm").on('input change', checkFormChanges);
-        
-        $("#resetForm").click(function() {
-            $("#fullName").val(originalProfileData.fullName);
-            $("#phoneNumber").val(originalProfileData.phoneNumber);
-            $("#department").val(originalProfileData.department);
-            checkFormChanges();
-            $("#profileUpdateMessage").empty();
-        });
         
         $("#teacherProfileForm").submit(function(e) {
             e.preventDefault();
@@ -473,35 +547,67 @@ $(document).ready(function() {
 
     function checkFormChanges() {
         const currentData = {
-            fullName: $("#fullName").val(),
-            phoneNumber: $("#phoneNumber").val(),
-            department: $("#department").val()
+            name: $("#teacherName").val(),
+            phone: $("#teacherPhone").val(),
+            department: $("#teacherDepartment").val()
         };
 
         const hasChanges = Object.keys(originalProfileData).some(
             key => originalProfileData[key] !== currentData[key]
         );
         
-        $("#saveChanges").prop('disabled', !hasChanges);
-        $("#resetForm").toggle(hasChanges);
+        $(".save-profile-btn").prop('disabled', !hasChanges);
     }
 
     function updateProfile() {
-        const formData = {
-            fullName: $("#fullName").val(),
-            phoneNumber: $("#phoneNumber").val(),
-            department: $("#department").val()
+        const updatedData = {
+            name: $("#teacherName").val(),
+            email: $("#teacherEmail").val(),
+            phone: $("#teacherPhone").val(),
+            department: $("#teacherDepartment").val()
         };
+        
+        // Show loading state
+        $(".save-profile-btn").html('<i class="fas fa-spinner fa-spin"></i> Saving...').prop('disabled', true);
+        
+        // Make API call to update profile
+        $.ajax({
+            url: '/api/teacher/profile/',
+            method: 'PUT',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            data: updatedData,
+            success: function(response) {
+                if (response.success) {
+                    originalProfileData = updatedData;
+                    showToast('Profile updated successfully', 'success');
+                    $(".save-profile-btn").html('<i class="fas fa-save"></i> Save Changes').prop('disabled', false);
+                } else {
+                    showToast('Failed to update profile: ' + response.message, 'error');
+                    $(".save-profile-btn").html('<i class="fas fa-save"></i> Save Changes').prop('disabled', false);
+                }
+            },
+            error: function(xhr, status, error) {
+                showToast('Error updating profile: ' + error, 'error');
+                $(".save-profile-btn").html('<i class="fas fa-save"></i> Save Changes').prop('disabled', false);
+            }
+        });
+    }
 
-        $("#saveChanges").prop('disabled', true);
-        $("#profileUpdateMessage").html('<div class="info">Updating profile...</div>');
-
-        // Simulate API call
-        setTimeout(() => {
-            $("#profileUpdateMessage").html('<div class="success">Profile updated successfully!</div>');
-            originalProfileData = { ...formData };
-            checkFormChanges();
-        }, 1000);
+    function displayProfileData(profileData) {
+        $("#teacherName").val(profileData.name);
+        $("#teacherEmail").val(profileData.email);
+        $("#teacherPhone").val(profileData.phone);
+        $("#teacherDepartment").val(profileData.department);
+        
+        originalProfileData = {
+            name: profileData.name,
+            phone: profileData.phone,
+            department: profileData.department
+        };
+        
+        checkFormChanges();
     }
 
     // Utility functions
@@ -510,19 +616,123 @@ $(document).ready(function() {
         return new Date(dateString).toLocaleDateString(undefined, options);
     }
 
-    // Placeholder functions for future implementation
     function editExam(examId) {
-        console.log(`Editing exam ${examId}`);
-        // Implementation would go here
+        // Show loading state
+        $(".edit-btn").prop('disabled', true);
+        
+        // Make API call to get exam details
+        $.ajax({
+            url: `/api/exams/${examId}/`,
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Redirect to edit page with exam data
+                    window.location.href = `/exams/manage/${examId}/`;
+                } else {
+                    showToast('Failed to load exam: ' + response.message, 'error');
+                }
+            },
+            error: function(xhr, status, error) {
+                showToast('Error loading exam: ' + error, 'error');
+            },
+            complete: function() {
+                $(".edit-btn").prop('disabled', false);
+            }
+        });
     }
 
     function deleteExam(examId) {
-        console.log(`Deleting exam ${examId}`);
+        if (!confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
+            return;
+        }
+        
+        // Show loading state
+        $(".delete-btn").prop('disabled', true);
+        
+        // Make API call to delete exam
+        $.ajax({
+            url: `/api/exams/${examId}/`,
+            method: 'DELETE',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            success: function(response) {
+                if (response.success) {
+                    showToast('Exam deleted successfully', 'success');
+                    // Refresh exam list
+                    fetchExams();
+                } else {
+                    showToast('Failed to delete exam: ' + response.message, 'error');
+                }
+            },
+            error: function(xhr, status, error) {
+                showToast('Error deleting exam: ' + error, 'error');
+            },
+            complete: function() {
+                $(".delete-btn").prop('disabled', false);
+            }
+        });
+    }
+
+    function displayPerformanceReport(data) {
         // Implementation would go here
     }
 
-    function generateReport(reportType) {
-        console.log(`Generating ${reportType} report`);
+    function displayAttendanceReport(data) {
         // Implementation would go here
     }
+
+    function displayQuestionAnalysis(data) {
+        // Implementation would go here
+    }
+
+    // Add this function for toast notifications
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.opacity = 0;
+            setTimeout(() => toast.remove(), 500);
+        }, 2500);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // ...existing code...
+
+        document.getElementById('loginForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const loginBtn = this.querySelector('button[type="submit"]');
+            const originalBtnHtml = loginBtn.innerHTML;
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
+
+            const userType = document.getElementById('userType').value;
+            if (!userType) {
+                document.getElementById('error-message').textContent = 'Please select a user type';
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = originalBtnHtml;
+                return;
+            }
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                await loginUser(userType, username, password);
+                showToast('Login successful! Redirecting...', 'success');
+            } catch (error) {
+                showToast(error.message || 'Login failed', 'error');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = originalBtnHtml;
+            }
+        });
+    });
 });

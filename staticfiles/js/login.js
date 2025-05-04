@@ -15,10 +15,11 @@ function selectUserType(type) {
 
 async function loginUser(userType, username, password) {
     try {
-        const response = await fetch('/api/auth/login', {
+        const response = await fetch('/accounts/login/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
             },
             body: JSON.stringify({
                 username: username,
@@ -30,31 +31,35 @@ async function loginUser(userType, username, password) {
         const data = await response.json();
         
         if (!response.ok) {
-            throw new Error(data.message || 'Login failed');
+            throw new Error(data.error || 'Login failed');
         }
         
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('userType', userType.toUpperCase());
-        
-        // Redirect based on user type
-        switch(userType.toUpperCase()) {
-            case 'STUDENT':
-                window.location.href = '/student-dashboard.html';
-                break;
-            case 'TEACHER':
-                window.location.href = '/teacher-dashboard.html';
-                break;
-            case 'ADMIN':
-                window.location.href = '/admin-dashboard.html';
-                break;
-            default:
-                throw new Error('Invalid user type');
+        if (data.success) {
+            window.location.href = data.redirect;
+        } else {
+            throw new Error(data.error || 'Login failed');
         }
         
     } catch (error) {
         console.error('Error during login:', error);
-        document.getElementById('error-message').textContent = error.message || 'Invalid credentials';
+        document.getElementById('error-message').textContent = error.message;
     }
+}
+
+// Helper function to get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
 }
 
 document.addEventListener('DOMContentLoaded', function() {

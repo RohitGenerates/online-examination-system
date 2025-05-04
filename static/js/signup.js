@@ -1,19 +1,14 @@
 $(document).ready(function() {
-    console.log('Document ready'); // Debug log
-
     // Initialize form sections
     $("#signupFormSection").hide();
     $("#studentFields, #teacherFields").hide();
 
     // Handle user type selection with smooth transition
     $(".user-type").click(function() {
-        console.log('User type clicked'); // Debug log
         $(".user-type").removeClass("selected");
         $(this).addClass("selected");
         
         const userType = $(this).data("type");
-        console.log('Selected type:', userType); // Debug log
-        
         $("#userType").val(userType);
         
         // Smooth transition between sections
@@ -33,7 +28,6 @@ $(document).ready(function() {
 
     // Handle back button with smooth transition
     $("#backToType").click(function() {
-        console.log('Back button clicked'); // Debug log
         $("#signupFormSection").fadeOut(300, function() {
             $("#userTypeSection").fadeIn(300);
             // Reset form when going back
@@ -62,7 +56,6 @@ $(document).ready(function() {
     // Form validation and submission
     $("#signupForm").submit(function(e) {
         e.preventDefault();
-        console.log('Form submitted'); // Debug log
         
         // Clear previous errors
         $("#error-message").text("");
@@ -118,8 +111,10 @@ $(document).ready(function() {
                 'X-CSRFToken': csrftoken
             },
             success: function(response) {
-                console.log('Server response:', response); // Debug log
                 if (response.redirect) {
+                    // Store username in session storage
+                    sessionStorage.setItem('new_user_username', jsonData.username);
+                    
                     // Show success toast notification
                     const toast = $('<div class="toast success">Account created successfully! Redirecting...</div>');
                     $('body').append(toast);
@@ -139,7 +134,6 @@ $(document).ready(function() {
                 }
             },
             error: function(xhr) {
-                console.error('AJAX error:', xhr); // Debug log
                 let errorMessage = "An error occurred during signup";
                 if (xhr.responseJSON && xhr.responseJSON.error) {
                     errorMessage = xhr.responseJSON.error;

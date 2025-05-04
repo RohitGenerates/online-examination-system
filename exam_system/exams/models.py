@@ -1,5 +1,5 @@
 from django.db import models
-from accounts.models import User
+from accounts.models import User, Student
 
 class Subject(models.Model):
     name = models.CharField(max_length=100)
@@ -75,3 +75,15 @@ class StudentAnswer(models.Model):
 
     def __str__(self):
         return f"{self.student_exam.student.username} - {self.question.text[:20]}"
+
+class ExamResult(models.Model):
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='results')
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='exam_results')
+    obtained_marks = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.student.username} - {self.exam.title} - {self.obtained_marks}"
+
+    class Meta:
+        ordering = ['-created_at']

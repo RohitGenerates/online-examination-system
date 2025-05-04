@@ -1,56 +1,149 @@
+{% extends 'base.html' %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Dashboard</title>
+
+{% block title %}Student Dashboard{% endblock %}
+
+{% block extra_css %}
     <link rel="stylesheet" href="{% static 'css/reset.css' %}">
     <link rel="stylesheet" href="{% static 'css/student-dashboard.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-</head>
-<body>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+{% endblock %}
+
+{% block content %}
     <div class="dashboard-container">
-        <nav class="dashboard-nav">
-            <div class="nav-header">
-                <img src="{% static 'images/logo.png' %}" alt="Logo" class="logo">
-                <h1>Student Dashboard</h1>
+        <div class="dashboard-options">
+            <div class="option-card active" id="examsCard">
+                <div class="card-icon">
+                    <i class="fas fa-book-open"></i>
+                </div>
+                <h3>My Exams</h3>
             </div>
-            <div class="user-info">
-                <img src="{% static 'images/default-avatar.png' %}" alt="User Avatar" class="avatar">
-                <span class="user-name">{{ user.username }}</span>
-                <a href="{% url 'accounts:logout' %}" class="logout-btn">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
+            <div class="option-card" id="resultsCard">
+                <div class="card-icon">
+                    <i class="fas fa-chart-bar"></i>
+                </div>
+                <h3>Results</h3>
             </div>
-        </nav>
+            <div class="option-card" id="profileCard">
+                <div class="card-icon">
+                    <i class="fas fa-user"></i>
+                </div>
+                <h3>Profile</h3>
+            </div>
+        </div>
 
-        <main class="dashboard-main">
-            <div class="dashboard-options">
-                <div class="option-card" id="takeExamOption">
-                    <div class="card-icon"><i class="fas fa-pencil-alt"></i></div>
-                    <h3>Take Exam</h3>
-                </div>
-                <div class="option-card" id="viewResultsOption">
-                    <div class="card-icon"><i class="fas fa-chart-bar"></i></div>
-                    <h3>View Results</h3>
-                </div>
-                <div class="option-card" id="updateProfileOption">
-                    <div class="card-icon"><i class="fas fa-user"></i></div>
-                    <h3>Update Profile</h3>
-                </div>
-            </div>
+        <div id="dynamicContentContainer">
+            {% if show_profile_form %}
+                <div class="profile-container">
+                    <h2>Complete Your Profile</h2>
+                    <form method="post" enctype="multipart/form-data" class="profile-form">
+                        {% csrf_token %}
+                        
+                        <div class="form-group">
+                            <label for="profile_picture">Profile Picture</label>
+                            <input type="file" name="profile_picture" id="profile_picture" accept="image/*">
+                        </div>
 
-            <div id="dynamicContentContainer">
-                <div class="welcome-message">
-                    <h2>Welcome to Student Dashboard</h2>
-                    <p>Select an option from the menu above to get started.</p>
+                        <div class="form-group">
+                            <label for="first_name">First Name</label>
+                            <input type="text" name="first_name" id="first_name" value="{{ user.first_name }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="last_name">Last Name</label>
+                            <input type="text" name="last_name" id="last_name" value="{{ user.last_name }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" name="email" id="email" value="{{ user.email }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="department">Department</label>
+                            <input type="text" name="department" id="department" value="{{ user.department }}" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="semester">Semester</label>
+                            <input type="text" name="semester" id="semester" value="{{ user.semester }}" required>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Profile</button>
+                        </div>
+                    </form>
                 </div>
-            </div>
-        </main>
+            {% else %}
+                <div class="exam-list-container" id="examsSection">
+                    <div class="exam-list-header">
+                        <h2>Upcoming Exams</h2>
+                    </div>
+                    
+                    {% for exam in available_exams %}
+                        <div class="exam-tile">
+                            <h3>{{ exam.title }}</h3>
+                            <p><i class="far fa-calendar-alt"></i> {{ exam.start_time|date:"F d, Y" }} | {{ exam.start_time|time:"g:i A" }}</p>
+                            <p><i class="far fa-clock"></i> Duration: {{ exam.duration }} minutes</p>
+                            <button class="start-exam-btn" onclick="window.location.href='{% url 'exams:take_exam' exam.id %}'">
+                                <i class="fas fa-play"></i> Start Exam
+                            </button>
+                        </div>
+                    {% empty %}
+                        <div class="no-exams">
+                            <p>No upcoming exams available.</p>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="results-container" id="resultsSection" style="display: none;">
+                    <div class="results-header">
+                        <h2>Exam Results</h2>
+                    </div>
+                    {% for result in exam_results %}
+                        <div class="result-tile">
+                            <h3>{{ result.exam.title }}</h3>
+                            <p>Score: {{ result.score }}%</p>
+                            <p>Date: {{ result.created_at|date:"F d, Y" }}</p>
+                        </div>
+                    {% empty %}
+                        <div class="no-results">
+                            <p>No exam results available.</p>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="profile-container" id="profileSection" style="display: none;">
+                    <h2>My Profile</h2>
+                    <form class="profile-form">
+                        <div class="input-with-icon">
+                            <i class="fas fa-user"></i>
+                            <input type="text" placeholder="Full Name" value="{{ user.get_full_name }}">
+                        </div>
+                        <div class="input-with-icon">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" placeholder="Email" value="{{ user.email }}">
+                        </div>
+                        <div class="input-with-icon">
+                            <i class="fas fa-id-card"></i>
+                            <input type="text" placeholder="Student ID" value="{{ user.username }}">
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="reset-btn">
+                                <i class="fas fa-undo"></i> Reset Changes
+                            </button>
+                            <button type="submit" class="submit-btn">
+                                <i class="fas fa-save"></i> Save Profile
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
     </div>
+{% endblock %}
 
+{% block extra_js %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="{% static 'js/student-dashboard.js' %}"></script>
-</body>
-</html>
+{% endblock %}

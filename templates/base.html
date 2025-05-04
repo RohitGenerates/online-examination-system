@@ -4,48 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Online Exam System - {% block title %}{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <title>{% block title %}Exam System{% endblock %}</title>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="logo">Online Exam System</div>
-            <ul class="nav-links">
-                {% if user.is_authenticated %}
-                    <li><a href="{% url 'accounts:dashboard' %}">Dashboard</a></li>
-                    {% if user.role == 'teacher' %}
-                        <li><a href="{% url 'exams:exam_list' %}">My Exams</a></li>
-                    {% elif user.role == 'student' %}
-                        <li><a href="{% url 'exams:exam_list' %}">Available Exams</a></li>
-                    {% endif %}
-                    <li><a href="{% url 'accounts:profile' %}">Profile</a></li>
-                    <li><a href="{% url 'accounts:logout' %}">Logout</a></li>
-                {% else %}
-                    <li><a href="{% url 'accounts:login' %}">Login</a></li>
-                {% endif %}
-            </ul>
-        </nav>
-    </header>
-
-    <main>
-        {% if messages %}
-            <div class="messages">
-                {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-                {% endfor %}
-            </div>
-        {% endif %}
-        
-        {% block content %}{% endblock %}
-    </main>
-
-    <footer>
-        <p>&copy; 2023 Online Exam System. All rights reserved.</p>
-    </footer>
-
-    <script src="{% static 'js/main.js' %}"></script>
+    {% block content %}{% endblock %}
     {% block extra_js %}{% endblock %}
 </body>
 </html>

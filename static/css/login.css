@@ -4,11 +4,14 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: var(--gradient-bg);
     color: var(--text-color);
+    padding: 20px 0;
     margin: 0;
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    overflow-y: auto;
 }
 
 .login-container {
@@ -20,6 +23,13 @@ body {
     max-width: 400px;
     backdrop-filter: blur(10px);
     border: var(--border-light);
+    max-height: 90vh;
+    overflow-y: auto;
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .login-header {
@@ -356,7 +366,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     right: 20px;
     padding: 15px 25px;
     border-radius: 8px;
-    color: white;
+    color: var(--text-color);
     font-weight: 500;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 1000;
@@ -441,3 +451,12 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     overflow-y: auto;
     display: none;
 }
+
+.signupFormSection {
+    flex: 1;
+    display: flex;
+    min-height: 100%;
+    justify-content: center;
+    align-items: center;
+}
+

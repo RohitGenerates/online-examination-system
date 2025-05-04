@@ -1,16 +1,15 @@
+{% extends 'base.html' %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block extra_css %}
     <link rel="stylesheet" href="{% static 'css/reset.css' %}">
     <link rel="stylesheet" href="{% static 'css/admin-dashboard.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
     <div class="dashboard-container">
         <nav class="dashboard-nav">
             <div class="nav-header">
@@ -18,7 +17,7 @@
                 <h1>Admin Dashboard</h1>
             </div>
             <div class="user-info">
-                <img src="{% static 'images/default-avatar.png' %}" alt="User Avatar" class="avatar">
+                <img src="{% if user.profile_picture %}{{ user.profile_picture.url }}{% else %}{% static 'images/default-avatar.png' %}{% endif %}" alt="User Avatar" class="avatar">
                 <span class="user-name">{{ user.username }}</span>
                 <a href="{% url 'accounts:logout' %}" class="logout-btn">
                     <i class="fas fa-sign-out-alt"></i> Logout
@@ -29,7 +28,7 @@
         <main class="dashboard-main">
             <div class="dashboard-options">
                 <div class="option-card" id="manageUsersOption">
-                    <div class="card-icon"><i class="fas fa-users-cog"></i></div>
+                    <div class="card-icon"><i class="fas fa-users"></i></div>
                     <h3>Manage Users</h3>
                 </div>
                 <div class="option-card" id="systemSettingsOption">
@@ -37,7 +36,7 @@
                     <h3>System Settings</h3>
                 </div>
                 <div class="option-card" id="systemLogsOption">
-                    <div class="card-icon"><i class="fas fa-clipboard-list"></i></div>
+                    <div class="card-icon"><i class="fas fa-history"></i></div>
                     <h3>System Logs</h3>
                 </div>
                 <div class="option-card" id="updateProfileOption">
@@ -47,15 +46,49 @@
             </div>
 
             <div id="dynamicContentContainer">
-                <!-- Default content when page loads -->
-                <div class="welcome-message">
-                    <h2>Welcome to Admin Dashboard</h2>
-                    <p>Select an option from the menu above to manage the system.</p>
-                </div>
+                {% if show_profile_form %}
+                    <div class="profile-container">
+                        <h2>Complete Your Profile</h2>
+                        <form method="post" enctype="multipart/form-data" class="profile-form">
+                            {% csrf_token %}
+                            
+                            <div class="form-group">
+                                <label for="profile_picture">Profile Picture</label>
+                                <input type="file" name="profile_picture" id="profile_picture" accept="image/*">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="first_name">First Name</label>
+                                <input type="text" name="first_name" id="first_name" value="{{ user.first_name }}">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="last_name">Last Name</label>
+                                <input type="text" name="last_name" id="last_name" value="{{ user.last_name }}">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="email">Email</label>
+                                <input type="email" name="email" id="email" value="{{ user.email }}">
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">Save Profile</button>
+                            </div>
+                        </form>
+                    </div>
+                {% else %}
+                    <div class="welcome-message">
+                        <h2>Welcome to Admin Dashboard</h2>
+                        <p>Select an option from the menu above to get started.</p>
+                    </div>
+                {% endif %}
             </div>
         </main>
     </div>
+{% endblock %}
 
+{% block extra_js %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="{% static 'js/admin-dashboard.js' %}"></script>
-</body>
-</html>
+{% endblock %}
