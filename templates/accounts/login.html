@@ -3,11 +3,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
     <title>Login</title>
     <link rel="stylesheet" href="{% static 'css/reset.css' %}">
     <link rel="stylesheet" href="{% static 'css/login.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
 </head>
 <body>
     <div class="login-container">
@@ -34,7 +34,7 @@
                 <span>Admin</span>
             </div>
         </div>
-        <form method="post" id="loginForm">
+        <form method="post" id="loginForm" action="{% url 'accounts:login' %}">
             {% csrf_token %}
             <input type="hidden" id="userType" name="userType" value="">
             <div class="form-group">
@@ -48,15 +48,27 @@
                     <i class="fa-solid fa-eye"></i>
                 </button>
             </div>
-            <div id="error-message" class="error-message"></div>
-            <button type="submit" class="submit-btn">
-                Login <i class="fas fa-arrow-right"></i>
+            {% if messages %}
+            <div id="error-message" class="error-message">
+                {% for message in messages %}
+                {{ message }}
+                {% endfor %}
+            </div>
+            {% endif %}
+            <button type="submit" class="submit-btn" id="loginButton">
+                <span class="button-text">Login</span>
+                <span class="loading-spinner" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </span>
+                <i class="fas fa-arrow-right"></i>
             </button>
         </form>
         <div class="additional-links">
             <a href="{% url 'accounts:signup' %}">Create Account</a>
         </div>
     </div>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <script src="{% static 'js/login.js' %}"></script>
 </body>
 </html>

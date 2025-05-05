@@ -3,14 +3,16 @@ from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from .models import User, Student, Teacher
-from exams.models import Exam, ExamResult, StudentExam
+from exams.models import Exam, StudentExamResult
 from django.contrib.auth.forms import UserCreationForm
 from django.core.exceptions import PermissionDenied
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 import json
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils import timezone
+import os
+from django.urls import reverse
 
 def root_view(request):
     return redirect('accounts:login')
@@ -22,64 +24,71 @@ def signup(request):
     elif request.method == 'POST':
         try:
             data = json.loads(request.body)
-            username = data.get('username')
+            user_id = data.get('username')  # This will be the college ID or admin ID
             email = data.get('email')
             password = data.get('password')
-            role = data.get('role')
-            department = data.get('department')
             semester = data.get('semester')
             
-            if not all([username, email, password, role]):
+            if not all([user_id, email, password]):
                 return JsonResponse({'error': 'All fields are required'}, status=400)
             
-            if User.objects.filter(username=username).exists():
-                return JsonResponse({'error': 'Username already exists'}, status=400)
+            # Validate ID format
+            is_admin = user_id.startswith('admin')
+            is_student_id = (
+                user_id[0] in '12345678' and
+                user_id[1:5] == 'mp23' and
+                user_id[5:7] in ['cg', 'cs', 'is', 'ml', 'ds']
+            )
+            is_teacher_id = (
+                user_id[0] == '0' and
+                user_id[1:5] == 'mp23' and
+                user_id[5:7] in ['cg', 'cs', 'is', 'ml', 'ds']
+            )
+            
+            if not (is_admin or is_student_id or is_teacher_id):
+                return JsonResponse({'error': 'Invalid ID format'}, status=400)
+            
+            if User.objects.filter(username=user_id).exists():
+                return JsonResponse({'error': 'ID already exists'}, status=400)
             
             if User.objects.filter(email=email).exists():
                 return JsonResponse({'error': 'Email already exists'}, status=400)
             
-            # Create user with all fields
+            # Create user
             user = User.objects.create_user(
-                username=username,
+                username=user_id,
                 email=email,
                 password=password,
-                role=role.lower(),
-                status='active',
-                department=department,
-                semester=semester if role.lower() == 'student' else None
+                status='active'
             )
             
-            # Create appropriate profile based on role
-            if role.lower() == 'student':
-                if not all([department, semester]):
-                    return JsonResponse({'error': 'Department and semester are required for students'}, status=400)
+            # Create appropriate profile based on ID
+            if is_admin:
+                # Admin users don't need additional profiles
+                pass
+            elif is_student_id:
+                dept_code = user_id[5:7]
+                department = dict(User.DEPARTMENT_CHOICES)[dept_code]
+                if not semester:
+                    return JsonResponse({'error': 'Semester is required for students'}, status=400)
                 Student.objects.create(
                     user=user,
                     department=department,
                     semester=semester
                 )
-            elif role.lower() == 'teacher':
-                if not department:
-                    return JsonResponse({'error': 'Department is required for teachers'}, status=400)
+            elif is_teacher_id:
+                dept_code = user_id[5:7]
+                department = dict(User.DEPARTMENT_CHOICES)[dept_code]
                 Teacher.objects.create(
                     user=user,
                     department=department
                 )
             
-            # Redirect to login page after successful signup
-            return JsonResponse({'redirect': '/accounts/login/'})
+            return JsonResponse({'message': 'User created successfully'})
             
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON data'}, status=400)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
-    elif request.method == 'OPTIONS':
-        response = HttpResponse()
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type, X-CSRFToken"
-        return response
-        
+    
     return render(request, 'accounts/signup.html')
 
 def student_details(request):
@@ -130,52 +139,37 @@ def teacher_details(request):
     
     return render(request, 'accounts/teacher-details.html')
 
-def user_login(request):
+def login_view(request):
     if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            username_or_email = data.get('username')
-            password = data.get('password')
-            user_type = data.get('userType')
-            
-            # Try to authenticate with username first
-            user = authenticate(request, username=username_or_email, password=password)
-            
-            # If authentication fails, try with email
-            if user is None:
-                try:
-                    user_with_email = User.objects.get(email=username_or_email)
-                    user = authenticate(request, username=user_with_email.username, password=password)
-                except User.DoesNotExist:
-                    pass
-
-            if user is not None:
-                if user.status == 'frozen':
-                    return JsonResponse({
-                        'error': 'Your account has been frozen. Please contact admin.'
-                    }, status=400)
-                
-                if user.role.upper() != user_type:
-                    return JsonResponse({
-                        'error': f'Invalid login. You are registered as a {user.role}, not a {user_type}.'
-                    }, status=400)
-                
-                login(request, user)
-                return JsonResponse({
-                    'success': True,
-                    'redirect': '/accounts/dashboard/',
-                    'userType': user.role.upper()
-                })
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user_type = request.POST.get('userType')
+        
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None:
+            login(request, user)
+            # Determine redirect URL based on user type
+            if user_type == 'student':
+                redirect_url = reverse('accounts:student_dashboard')
+            elif user_type == 'teacher':
+                redirect_url = reverse('accounts:teacher_dashboard')
+            elif user_type == 'admin':
+                redirect_url = reverse('accounts:admin_dashboard')
             else:
-                return JsonResponse({
-                    'error': 'Invalid username/email or password.'
-                }, status=400)
-                
-        except json.JSONDecodeError:
-            return JsonResponse({
-                'error': 'Invalid JSON data'
-            }, status=400)
-
+                redirect_url = reverse('accounts:dashboard')
+            
+            # If AJAX, return JSON
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('accept') == 'application/json':
+                return JsonResponse({'success': True, 'redirect': redirect_url})
+            # Otherwise, do a normal redirect
+            return HttpResponseRedirect(redirect_url)
+        else:
+            error_msg = 'Invalid username or password'
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('accept') == 'application/json':
+                return JsonResponse({'success': False, 'error': error_msg}, status=400)
+            messages.error(request, error_msg)
+            return render(request, 'accounts/login.html')
     return render(request, 'accounts/login.html')
 
 @login_required
@@ -184,129 +178,59 @@ def user_logout(request):
     return redirect('accounts:login')
 
 @login_required
-def dashboard(request):
-    if request.method == 'POST':
-        # Handle profile update
-        if 'profile_picture' in request.FILES:
-            request.user.profile_picture = request.FILES['profile_picture']
-        
-        if 'first_name' in request.POST:
-            request.user.first_name = request.POST['first_name']
-        
-        if 'last_name' in request.POST:
-            request.user.last_name = request.POST['last_name']
-        
-        if 'email' in request.POST:
-            request.user.email = request.POST['email']
-        
-        if 'department' in request.POST:
-            request.user.department = request.POST['department']
-        
-        request.user.save()
-        messages.success(request, 'Profile updated successfully!')
-        return redirect('accounts:dashboard')
+def student_dashboard(request):
+    if not hasattr(request.user, 'student_profile'):
+        raise PermissionDenied
+    
+    student = request.user.student_profile
+    available_exams = Exam.objects.filter(
+        department=student.department,
+        semester=student.semester,
+        start_time__lte=timezone.now(),
+        end_time__gte=timezone.now()
+    )
+    
+    results = StudentExamResult.objects.filter(student=student)
+    return render(request, 'accounts/student_dashboard.html', {
+        'student': student,
+        'available_exams': available_exams,
+        'results': results
+    })
 
-    if request.user.role == 'student':
-        try:
-            # Try to get existing student profile
-            student = Student.objects.get(user=request.user)
-        except Student.DoesNotExist:
-            # Check if required fields are set
-            if not request.user.department or not request.user.semester:
-                messages.error(request, 'Please complete your profile by setting your department and semester.')
-                return render(request, 'accounts/student-dashboard.html', {
-                    'student': None,
-                    'available_exams': [],
-                    'exam_results': [],
-                    'average_score': None,
-                    'show_profile_form': True
-                })
-            
-            # Create new student profile if it doesn't exist
-            student = Student.objects.create(
-                user=request.user,
-                department=request.user.department,
-                semester=request.user.semester
-            )
-        
-        # Get completed exam IDs
-        completed_exam_ids = StudentExam.objects.filter(
-            student=request.user,
-            is_completed=True
-        ).values_list('exam_id', flat=True)
-        
-        # Get available exams (published and not completed)
-        available_exams = Exam.objects.filter(
-            is_published=True,
-            start_time__lte=timezone.now(),
-            end_time__gte=timezone.now()
-        ).exclude(id__in=completed_exam_ids)
-        
-        # Get completed exam results
-        exam_results = StudentExam.objects.filter(
-            student=request.user,
-            is_completed=True
-        ).select_related('exam')
-        
-        # Calculate average score
-        average_score = None
-        if exam_results.exists():
-            total_score = sum(result.score for result in exam_results)
-            average_score = total_score / exam_results.count()
-        
-        return render(request, 'accounts/student-dashboard.html', {
-            'student': student,
-            'available_exams': available_exams,
-            'exam_results': exam_results,
-            'average_score': average_score,
-            'show_profile_form': False
-        })
-    elif request.user.role == 'teacher':
-        try:
-            # Try to get existing teacher profile
-            teacher = Teacher.objects.get(user=request.user)
-        except Teacher.DoesNotExist:
-            # Check if required fields are set
-            if not request.user.department:
-                messages.error(request, 'Please complete your profile by setting your department.')
-                return render(request, 'accounts/teacher-dashboard.html', {
-                    'teacher': None,
-                    'created_exams': [],
-                    'active_students_count': 0,
-                    'completed_exams_count': 0,
-                    'show_profile_form': True
-                })
-            
-            # Create new teacher profile if it doesn't exist
-            teacher = Teacher.objects.create(
-                user=request.user,
-                department=request.user.department
-            )
-        
-        # Get teacher's created exams
-        created_exams = Exam.objects.filter(created_by=request.user)
-        
-        # Get active students count (students who have taken at least one exam)
-        active_students_count = StudentExam.objects.filter(
-            exam__in=created_exams,
-            is_completed=True
-        ).values('student').distinct().count()
-        
-        # Get completed exams count
-        completed_exams_count = StudentExam.objects.filter(
-            exam__in=created_exams,
-            is_completed=True
-        ).count()
-        
-        return render(request, 'accounts/teacher-dashboard.html', {
-            'teacher': teacher,
-            'created_exams': created_exams,
-            'active_students_count': active_students_count,
-            'completed_exams_count': completed_exams_count,
-            'show_profile_form': False
-        })
+@login_required
+def teacher_dashboard(request):
+    if not hasattr(request.user, 'teacher_profile'):
+        raise PermissionDenied
+    
+    teacher = request.user.teacher_profile
+    created_exams = Exam.objects.filter(created_by=teacher)
+    results = StudentExamResult.objects.filter(exam__in=created_exams)
+    return render(request, 'accounts/teacher_dashboard.html', {
+        'teacher': teacher,
+        'exams': created_exams,
+        'results': results
+    })
+
+@login_required
+def admin_dashboard(request):
+    if not request.user.username.startswith('admin'):
+        raise PermissionDenied
+    
+    return render(request, 'accounts/admin_dashboard.html', {
+        'user': request.user
+    })
+
+@login_required
+def dashboard(request):
+    """Redirect to appropriate dashboard based on user type"""
+    if hasattr(request.user, 'student_profile'):
+        return redirect('accounts:student_dashboard')
+    elif hasattr(request.user, 'teacher_profile'):
+        return redirect('accounts:teacher_dashboard')
+    elif request.user.username.startswith('admin'):
+        return redirect('accounts:admin_dashboard')
     else:
-        return redirect('accounts:login')
+        raise PermissionDenied
 
 @login_required
 def profile(request):
@@ -322,8 +246,6 @@ def profile(request):
         user.save()
         messages.success(request, 'Profile updated successfully!')
         return redirect('accounts:profile')
-
-    return render(request, 'accounts/profile.html', {'user': request.user})
 
 # Admin Views
 @login_required
@@ -407,7 +329,7 @@ def view_results(request):
     results = []
     
     for exam in exams:
-        exam_results = ExamResult.objects.filter(exam=exam)
+        exam_results = StudentExamResult.objects.filter(exam=exam)
         if exam_results.exists():
             results.extend(exam_results)
     
@@ -435,7 +357,7 @@ def take_exam(request):
             semester=student.semester,
             exam_date__gt=timezone.now()
         ).exclude(
-            id__in=ExamResult.objects.filter(student=student).values_list('exam_id', flat=True)
+            id__in=StudentExamResult.objects.filter(student=student).values_list('exam_id', flat=True)
         )
         
         return render(request, 'accounts/take_exam.html', {'exams': exams})
@@ -444,21 +366,22 @@ def take_exam(request):
         return redirect('accounts:dashboard')
 
 @login_required
-def view_student_results(request):
-    if request.user.role != 'student':
+def view_student_results(request, student_id):
+    if not hasattr(request.user, 'teacher_profile'):
         raise PermissionDenied
     
     try:
-        # Get student's profile
-        student = Student.objects.get(user=request.user)
-        
-        # Get student's exam results
-        results = ExamResult.objects.filter(student=student)
-        
-        return render(request, 'accounts/view_student_results.html', {'results': results})
+        student = Student.objects.get(id=student_id)
+        if student.department != request.user.teacher_profile.department:
+            raise PermissionDenied
+            
+        results = StudentExamResult.objects.filter(student=student)
+        return render(request, 'accounts/view_student_results.html', {
+            'student': student,
+            'results': results
+        })
     except Student.DoesNotExist:
-        messages.error(request, 'Student profile not found')
-        return redirect('accounts:dashboard')
+        return JsonResponse({'error': 'Student not found'}, status=404)
 
 # Placeholder views for future implementation
 @login_required

@@ -1,34 +1,20 @@
 from django.contrib import admin
-from .models import Subject, Question, Exam, ExamQuestion, StudentExam, StudentAnswer
+from .models import Question, Exam, StudentExamResult
 
-class ExamQuestionInline(admin.TabularInline):
-    model = ExamQuestion
-    extra = 1
-
-class StudentAnswerInline(admin.TabularInline):
-    model = StudentAnswer
-    extra = 0
-
-@admin.register(Subject)
-class SubjectAdmin(admin.ModelAdmin):
-    list_display = ('name', 'description')
-
-@admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ('text', 'subject', 'question_type', 'correct_answer', 'marks')
-    list_filter = ('subject', 'question_type')
+    list_display = ('text', 'marks')
+    search_fields = ('text',)
 
-@admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
-    list_display = ('title', 'subject', 'created_by', 'start_time', 'end_time', 'is_published')
-    list_filter = ('subject', 'created_by', 'is_published')
-    inlines = [ExamQuestionInline]
+    list_display = ('title', 'subject', 'department', 'semester', 'duration', 'passing_score')
+    list_filter = ('department', 'semester')
+    search_fields = ('title', 'subject')
 
-@admin.register(StudentExam)
-class StudentExamAdmin(admin.ModelAdmin):
-    list_display = ('student', 'exam', 'start_time', 'end_time', 'is_completed', 'score')
-    list_filter = ('exam', 'student', 'is_completed')
-    inlines = [StudentAnswerInline]
+class StudentExamResultAdmin(admin.ModelAdmin):
+    list_display = ('student', 'exam', 'obtained_marks', 'status', 'submitted_at')
+    list_filter = ('status', 'submitted_at')
+    search_fields = ('student__user__username', 'exam__title')
 
-admin.site.register(ExamQuestion)
-admin.site.register(StudentAnswer)
+admin.site.register(Question, QuestionAdmin)
+admin.site.register(Exam, ExamAdmin)
+admin.site.register(StudentExamResult, StudentExamResultAdmin)

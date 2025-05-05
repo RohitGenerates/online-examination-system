@@ -7,6 +7,6 @@ from accounts.views import root_view
 urlpatterns = [
     path('', root_view, name='root'),
     path('admin/', admin.site.urls),
-    path('accounts/', include('accounts.urls', namespace='accounts')),
-    path('exams/', include('exams.urls', namespace='exams')),
+    path('accounts/', include('accounts.urls')),
+    path('exams/', include('exams.urls')),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

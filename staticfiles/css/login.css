@@ -250,6 +250,8 @@ body {
 .user-type.selected {
     transform: scale(1.05);
     animation: subtle-pulse 2s infinite;
+    border-color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
 }
 
 .user-type.selected .icon-circle {
@@ -372,6 +374,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     z-index: 1000;
     display: none;
     animation: slideIn 0.3s ease-out;
+    opacity: 1 !important;
 }
 
 .toast.success {
@@ -458,5 +461,34 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     min-height: 100%;
     justify-content: center;
     align-items: center;
+}
+
+/* Loading spinner styles */
+.loading-spinner {
+    margin-right: 8px;
+}
+
+.submit-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Toast notification customization */
+.toast {
+    opacity: 1 !important;
+}
+
+.toast-success {
+    background-color: #28a745 !important;
+}
+
+.toast-error {
+    background-color: #dc3545 !important;
+}
+
+/* User type selection styles */
+.user-type.selected {
+    border-color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
 }
 

@@ -1,89 +1,44 @@
 from django.db import models
-from accounts.models import User, Student
-
-class Subject(models.Model):
-    name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-    
-    def __str__(self):
-        return self.name
+from accounts.models import User, Student, Teacher
 
 class Question(models.Model):
-    QUESTION_TYPES = (
-        ('mcq', 'Multiple Choice'),
-        ('tf', 'True/False'),
-    )
-
-    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
-    question_type = models.CharField(max_length=10, choices=QUESTION_TYPES)
     text = models.TextField()
-    option_a = models.CharField(max_length=255, blank=True, null=True)
-    option_b = models.CharField(max_length=255, blank=True, null=True)
-    option_c = models.CharField(max_length=255, blank=True, null=True)
-    option_d = models.CharField(max_length=255, blank=True, null=True)
+    options = models.JSONField()  # Store options as JSON array
     correct_answer = models.CharField(max_length=1)  # a, b, c, d for MCQ; t/f for True/False
     marks = models.PositiveIntegerField(default=1)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.text[:50]}..."
 
 class Exam(models.Model):
     title = models.CharField(max_length=200)
-    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    subject = models.CharField(max_length=100)
+    department = models.CharField(max_length=100)  # Which department this exam is for
+    semester = models.CharField(max_length=2)      # Which semester students can take this
     duration = models.PositiveIntegerField(help_text="Duration in minutes")
     passing_score = models.PositiveIntegerField()
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
-    instructions = models.TextField(blank=True)
-    is_published = models.BooleanField(default=False)
-
-    questions = models.ManyToManyField(Question, through='ExamQuestion')
+    created_by = models.ForeignKey(Teacher, on_delete=models.CASCADE)
+    questions = models.JSONField()  # Store question IDs as JSON array
 
     def __str__(self):
         return self.title
 
-class ExamQuestion(models.Model):
+class StudentExamResult(models.Model):
+    STATUS_CHOICES = (
+        ('pass', 'Pass'),
+        ('fail', 'Fail'),
+    )
+    
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE)
-    question = models.ForeignKey(Question, on_delete=models.CASCADE)
-    order = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ['order']
-
-    def __str__(self):
-        return f"{self.exam.title} - Q{self.order}"
-
-class StudentExam(models.Model):
-    student = models.ForeignKey(User, on_delete=models.CASCADE)
-    exam = models.ForeignKey(Exam, on_delete=models.CASCADE)
-    start_time = models.DateTimeField(auto_now_add=True)
-    end_time = models.DateTimeField(null=True, blank=True)
-    is_completed = models.BooleanField(default=False)
-    score = models.FloatField(null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.student.username} - {self.exam.title}"
-
-class StudentAnswer(models.Model):
-    student_exam = models.ForeignKey(StudentExam, on_delete=models.CASCADE)
-    question = models.ForeignKey(Question, on_delete=models.CASCADE)
-    answer = models.CharField(max_length=1)  # a, b, c, d or t/f
-    is_correct = models.BooleanField(default=False)
-
-    def __str__(self):
-        return f"{self.student_exam.student.username} - {self.question.text[:20]}"
-
-class ExamResult(models.Model):
-    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='results')
-    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='exam_results')
     obtained_marks = models.IntegerField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.student.username} - {self.exam.title} - {self.obtained_marks}"
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES)
+    submitted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-created_at']
+        unique_together = ('student', 'exam')  # Prevent multiple attempts
+
+    def __str__(self):
+        return f"{self.student.user.username} - {self.exam.title} - {self.obtained_marks}"
