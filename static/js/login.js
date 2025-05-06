@@ -9,8 +9,8 @@ function selectUserType(type) {
     const selectedElement = event.currentTarget;
     selectedElement.classList.add('selected');
     
-    // Update hidden input value
-    document.getElementById('userType').value = type.toUpperCase();
+    // Update hidden input value - store as lowercase
+    document.getElementById('userType').value = type.toLowerCase();
 }
 
 // Helper function to get CSRF token from cookies
@@ -48,7 +48,8 @@ document.addEventListener('DOMContentLoaded', function() {
         type.addEventListener('click', function() {
             userTypes.forEach(t => t.classList.remove('selected'));
             this.classList.add('selected');
-            userTypeInput.value = this.dataset.type;
+            // Store the type in lowercase to match backend expectations
+            userTypeInput.value = this.dataset.type.toLowerCase();
         });
     });
     
@@ -83,13 +84,18 @@ document.addEventListener('DOMContentLoaded', function() {
         loadingSpinner.style.display = 'inline-block';
         loginButton.disabled = true;
 
+        // Get CSRF token from cookie
+        const csrftoken = getCookie('csrftoken');
+
         // Submit the form
         fetch(this.action, {
             method: 'POST',
             body: new FormData(this),
             headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
+                'X-CSRFToken': csrftoken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
         })
         .then(async response => {
             const contentType = response.headers.get('content-type');

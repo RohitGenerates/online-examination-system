@@ -4,11 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Exam System{% endblock %}</title>
+    <title>{% block title %}Online Exam System{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
     {% block extra_css %}{% endblock %}
+    
+    <!-- JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    {% block extra_js %}{% endblock %}
 </head>
 <body>
     {% block content %}{% endblock %}
-    {% block extra_js %}{% endblock %}
 </body>
 </html>

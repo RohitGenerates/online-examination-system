@@ -1,11 +1,19 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.core.validators import RegexValidator
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 class User(AbstractUser):
     STATUS_CHOICES = (
         ('active', 'Active'),
         ('frozen', 'Frozen'),
+    )
+    
+    ROLE_CHOICES = (
+        ('admin', 'Admin'),
+        ('teacher', 'Teacher'),
+        ('student', 'Student'),
     )
     
     DEPARTMENT_CHOICES = (
@@ -18,7 +26,7 @@ class User(AbstractUser):
     
     # Override username field to use college_id
     username = models.CharField(
-        max_length=20,
+        max_length=30,
         unique=True,
         validators=[
             RegexValidator(
@@ -30,7 +38,9 @@ class User(AbstractUser):
     )
     
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
-    
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='student')  # Default to student
+    phone_number = models.CharField(max_length=15, blank=True)
+
     def __str__(self):
         return self.username
     
@@ -54,8 +64,23 @@ class User(AbstractUser):
                 return name
         return None
 
+    # Override the save method to ensure role is set based on ID format
+    def user_save(self, *args, **kwargs):
+        # Set role based on ID format if not explicitly set
+        if not self.role or self.role not in [choice[0] for choice in self.ROLE_CHOICES]:
+            role_from_id = self.get_role_from_id()
+            if role_from_id:
+                self.role = role_from_id
+        # If this is a new user, ensure department is set
+        if not self.pk:
+            department = self.get_department_from_id()
+        super(type(self), self).save(*args, **kwargs)
+
+    # Add this method to your User model
+    save = user_save
+
 class Student(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile')
     department = models.CharField(max_length=100)
     semester = models.CharField(max_length=2)
     
@@ -63,8 +88,25 @@ class Student(models.Model):
         return f"{self.user.username} - {self.department} - Semester {self.semester}"
 
 class Teacher(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='teacher_profile')
     department = models.CharField(max_length=100)
     
     def __str__(self):
         return f"{self.user.username} - {self.department}"
+
+# Signal handler to create student/teacher profiles
+def create_user_profile(sender, instance, created, **kwargs):
+    """Create corresponding profile when user is created"""
+    if created:
+        # Get department from ID
+        department = instance.get_department_from_id()
+        if instance.role == 'student':
+            # Create student profile - extract semester from ID or set default
+            semester = '1'  # Default semester
+            Student.objects.create(user=instance, department=department, semester=semester)
+        elif instance.role == 'teacher':
+            # Create teacher profile
+            Teacher.objects.create(user=instance, department=department)
+
+# Connect the signal
+post_save.connect(create_user_profile, sender=User)

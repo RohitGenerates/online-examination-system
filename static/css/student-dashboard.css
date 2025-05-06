@@ -29,6 +29,31 @@ body {
     border-bottom: 1px solid var(--div-element);
 }
 
+.user-name {
+    color: var(--text-color);
+    font-size: 1.2rem;
+    font-weight: 500;
+}
+
+.user-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    border: none;
+    background: none;
+    font-size: 1.6rem; /* icon size */
+    color: var(--highlight-secondary);
+    margin: 0;
+    padding: 0;
+}
+.user-avatar i {
+    margin: 0;
+    color: var(--highlight-color);
+}
+
 .nav-header {
     display: flex;
     align-items: center;
@@ -163,6 +188,7 @@ body {
 .logout-btn:hover {
     background-color: var(--highlight-color);
     transform: translateY(-2px);
+    color: var(--text-color);
 }
 
 /* Profile Form Styles - EXACT original sizing with ONLY color variables changed */
@@ -234,10 +260,21 @@ body {
     margin-top: 1rem;
 }
 
+.form-actions button:not([hidden]) {
+    flex: 1; /* This makes visible buttons take equal width */
+}
+
+.form-actions.dual-buttons button:not([hidden]) {
+    font-size: 1.2rem;
+}
+
 .reset-btn {
+    width: 100;
     background-color: var(--div-element);
     color: var(--text-color);
     border: none;
+    font-size: 1rem;
+    font-weight: 500;
     padding: 12px 24px;
     border-radius: 8px;
     cursor: pointer;
@@ -263,12 +300,13 @@ body {
 
 .submit-btn:hover {
     background-color: var(--div-element);
+    color: var(--highlight-secondary);
     /* Original hover color maintained - only variable changed */
 }
 
 .submit-btn:disabled {
     background-color: var(--div-element);
-    opacity: 0.7;
+    opacity: 0.6;
     cursor: not-allowed;
 }
 

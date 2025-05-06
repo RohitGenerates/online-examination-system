@@ -1,3 +1,18 @@
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
 $(document).ready(function() {
     // Add logout handler
     $("#logoutBtn").click(function() {
@@ -124,9 +139,33 @@ $(document).ready(function() {
         $("#dynamicContentContainer").hide().html(
             `<div class="results-container">
                 <h2>Your Exam Results</h2>
-                <p>Past exam results will appear here.</p>
+                <div id="resultsList"><div class="loading">Loading results...</div></div>
             </div>`
         ).slideDown(300);
+    
+        fetch('/api/student/results')
+            .then(response => response.json())
+            .then(results => {
+                let html = '';
+                if (results.length === 0) {
+                    html = '<div class="no-results">No exam results yet.</div>';
+                } else {
+                    results.forEach(result => {
+                        html += `
+                            <div class="result-card">
+                                <h3>${result.examTitle}</h3>
+                                <div>Score: ${result.obtainedMarks}</div>
+                                <div>Status: ${result.status}</div>
+                                <div>Submitted: ${result.submittedAt}</div>
+                            </div>
+                        `;
+                    });
+                }
+                $('#resultsList').html(html);
+            })
+            .catch(() => {
+                $('#resultsList').html('<div class="error">Failed to load results. Please try again later.</div>');
+            });
     }
 
     function loadProfileForm() {
@@ -155,14 +194,7 @@ $(document).ready(function() {
                     <div class="form-group">
                         <div class="input-with-icon">
                             <i class="fas fa-building"></i>
-                            <select id="department" name="department" required>
-                                <option value="">Select Department</option>
-                                <option value="CS">Computer Science</option>
-                                <option value="IT">Information Technology</option>
-                                <option value="CE">Computer Engineering</option>
-                                <option value="EE">Electrical Engineering</option>
-                                <option value="ME">Mechanical Engineering</option>
-                            </select>
+                            <input type="text" id="department" name="department" placeholder="Department" readonly>
                         </div>
                     </div>
                     <div class="form-group">
@@ -189,7 +221,7 @@ $(document).ready(function() {
                     </div>
                     <div class="form-actions">
                         <button type="button" class="btn reset-btn" id="resetForm" style="display: none;">Reset Changes</button>
-                        <button type="submit" class="btn primary-btn" id="saveChanges" disabled>Save Changes</button>
+                        <button type="submit" class="btn submit-btn" id="saveChanges" disabled>Save Changes</button>
                     </div>
                 </form>
                 <div id="profileUpdateMessage" class="message-container"></div>
@@ -252,7 +284,8 @@ $(document).ready(function() {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                    'X-CSRFToken': getCookie('csrftoken')
                 },
                 body: JSON.stringify(formData)
             })

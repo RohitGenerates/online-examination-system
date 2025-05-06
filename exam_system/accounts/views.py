@@ -11,6 +11,7 @@ import json
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils import timezone
+from django.db import transaction
 import os
 from django.urls import reverse
 
@@ -28,6 +29,7 @@ def signup(request):
             email = data.get('email')
             password = data.get('password')
             semester = data.get('semester')
+            department = data.get('department')  # Get department from request
             
             if not all([user_id, email, password]):
                 return JsonResponse({'error': 'All fields are required'}, status=400)
@@ -54,38 +56,36 @@ def signup(request):
             if User.objects.filter(email=email).exists():
                 return JsonResponse({'error': 'Email already exists'}, status=400)
             
-            # Create user
-            user = User.objects.create_user(
-                username=user_id,
-                email=email,
-                password=password,
-                status='active'
-            )
-            
-            # Create appropriate profile based on ID
-            if is_admin:
-                # Admin users don't need additional profiles
-                pass
-            elif is_student_id:
+            # Get department from ID if not provided
+            if not department and not is_admin:
                 dept_code = user_id[5:7]
                 department = dict(User.DEPARTMENT_CHOICES)[dept_code]
-                if not semester:
-                    return JsonResponse({'error': 'Semester is required for students'}, status=400)
-                Student.objects.create(
-                    user=user,
-                    department=department,
-                    semester=semester
-                )
-            elif is_teacher_id:
-                dept_code = user_id[5:7]
-                department = dict(User.DEPARTMENT_CHOICES)[dept_code]
-                Teacher.objects.create(
-                    user=user,
-                    department=department
-                )
             
-            return JsonResponse({'message': 'User created successfully'})
+            # Use transaction to ensure data consistency
+            with transaction.atomic():
+                # Create user
+                user = User.objects.create_user(
+                    username=user_id,
+                    email=email,
+                    password=password,
+                    status='active',
+                    role='admin' if is_admin else 'student' if is_student_id else 'teacher'
+                )
+                # Do NOT manually create Student or Teacher profile here; let the post_save signal handle it
+                if is_student_id and not semester:
+                    raise ValueError('Semester is required for students')
             
+            return JsonResponse({
+                'message': 'User created successfully',
+                'redirect': '/accounts/login/'
+            })
+            
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+        except KeyError as e:
+            return JsonResponse({'error': f'Missing required field: {str(e)}'}, status=400)
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
     
@@ -145,17 +145,48 @@ def login_view(request):
         password = request.POST.get('password')
         user_type = request.POST.get('userType')
         
+        # Debug output to help diagnose issues
+        print(f"Login attempt - Username: {username}, User Type: {user_type}")
+        
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
+            # Check if the user account is active
+            if not user.is_active:
+                error_msg = 'Your account is disabled. Please contact support.'
+                if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('accept') == 'application/json':
+                    return JsonResponse({'success': False, 'error': error_msg}, status=403)
+                messages.error(request, error_msg)
+                return render(request, 'accounts/login.html')
+            
+            # Get user's actual role based on the model structure and ID format
+            actual_role = user.role  # Use the role field from the User model
+            
+            # Convert user_type to lowercase for comparison, or use a default value
+            selected_type = user_type.lower() if user_type else ''
+            
+            print(f"User roles - Model role: {actual_role}, Selected role: {selected_type}")
+            print(f"Profile checks - Has student profile: {hasattr(user, 'student_profile')}, Has teacher profile: {hasattr(user, 'teacher_profile')}")
+            
+            # Check if the selected type matches the user's actual type
+            type_matches = (selected_type == actual_role)
+            
+            if not type_matches:
+                error_msg = 'Invalid user type selected'
+                if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('accept') == 'application/json':
+                    return JsonResponse({'success': False, 'error': error_msg}, status=400)
+                messages.error(request, error_msg)
+                return render(request, 'accounts/login.html')
+            
             login(request, user)
+            
             # Determine redirect URL based on user type
-            if user_type == 'student':
-                redirect_url = reverse('accounts:student_dashboard')
-            elif user_type == 'teacher':
-                redirect_url = reverse('accounts:teacher_dashboard')
-            elif user_type == 'admin':
+            if actual_role == 'admin':
                 redirect_url = reverse('accounts:admin_dashboard')
+            elif actual_role == 'student':
+                redirect_url = reverse('accounts:student_dashboard')
+            elif actual_role == 'teacher':
+                redirect_url = reverse('accounts:teacher_dashboard')
             else:
                 redirect_url = reverse('accounts:dashboard')
             
@@ -180,7 +211,8 @@ def user_logout(request):
 @login_required
 def student_dashboard(request):
     if not hasattr(request.user, 'student_profile'):
-        raise PermissionDenied
+        messages.error(request, 'You do not have permission to access the student dashboard')
+        return redirect('accounts:dashboard')
     
     student = request.user.student_profile
     available_exams = Exam.objects.filter(
@@ -200,7 +232,8 @@ def student_dashboard(request):
 @login_required
 def teacher_dashboard(request):
     if not hasattr(request.user, 'teacher_profile'):
-        raise PermissionDenied
+        messages.error(request, 'You do not have permission to access the teacher dashboard')
+        return redirect('accounts:dashboard')
     
     teacher = request.user.teacher_profile
     created_exams = Exam.objects.filter(created_by=teacher)
@@ -214,7 +247,8 @@ def teacher_dashboard(request):
 @login_required
 def admin_dashboard(request):
     if not request.user.username.startswith('admin'):
-        raise PermissionDenied
+        messages.error(request, 'You do not have permission to access the admin dashboard')
+        return redirect('accounts:dashboard')
     
     return render(request, 'accounts/admin_dashboard.html', {
         'user': request.user
@@ -230,7 +264,8 @@ def dashboard(request):
     elif request.user.username.startswith('admin'):
         return redirect('accounts:admin_dashboard')
     else:
-        raise PermissionDenied
+        messages.error(request, 'Invalid user type')
+        return redirect('accounts:login')
 
 @login_required
 def profile(request):
@@ -250,27 +285,27 @@ def profile(request):
 # Admin Views
 @login_required
 def manage_users(request):
-    if request.user.role != 'admin':
+    if not request.user.username.startswith('admin'):
         raise PermissionDenied
     users = User.objects.all()
     return render(request, 'accounts/manage_users.html', {'users': users})
 
 @login_required
 def system_settings(request):
-    if request.user.role != 'admin':
+    if not request.user.username.startswith('admin'):
         raise PermissionDenied
     return render(request, 'accounts/system_settings.html')
 
 @login_required
 def system_logs(request):
-    if request.user.role != 'admin':
+    if not request.user.username.startswith('admin'):
         raise PermissionDenied
     return render(request, 'accounts/system_logs.html')
 
 # Teacher Views
 @login_required
 def create_exam(request):
-    if request.user.role != 'teacher':
+    if not hasattr(request.user, 'teacher_profile'):
         raise PermissionDenied
     
     if request.method == 'POST':
@@ -312,7 +347,7 @@ def create_exam(request):
 
 @login_required
 def manage_exams(request):
-    if request.user.role != 'teacher':
+    if not hasattr(request.user, 'teacher_profile'):
         raise PermissionDenied
     
     # Get exams created by the current teacher
@@ -321,7 +356,7 @@ def manage_exams(request):
 
 @login_required
 def view_results(request):
-    if request.user.role != 'teacher':
+    if not hasattr(request.user, 'teacher_profile'):
         raise PermissionDenied
     
     # Get exams created by the current teacher
@@ -337,14 +372,14 @@ def view_results(request):
 
 @login_required
 def generate_reports(request):
-    if request.user.role != 'teacher':
+    if not hasattr(request.user, 'teacher_profile'):
         raise PermissionDenied
     return render(request, 'accounts/generate_reports.html')
 
 # Student Views
 @login_required
 def take_exam(request):
-    if request.user.role != 'student':
+    if not hasattr(request.user, 'student_profile'):
         raise PermissionDenied
     
     try:

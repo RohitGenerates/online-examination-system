@@ -143,3 +143,63 @@ def view_results(request):
     return render(request, 'exams/view_results.html', {
         'results': results
     })
+
+@login_required
+def api_student_exams(request):
+    if not hasattr(request.user, 'student_profile'):
+        return JsonResponse({'error': 'Not a student'}, status=403)
+    student = request.user.student_profile
+    now = timezone.now()
+    exams = Exam.objects.filter(
+        department=student.department,
+        semester=student.semester,
+        start_time__lte=now,
+        end_time__gte=now
+    )
+    exam_list = [
+        {
+            'id': exam.id,
+            'title': exam.title,
+            'subject': exam.subject,
+            'duration': exam.duration,
+            'totalQuestions': getattr(exam, 'total_questions', 0),
+            'deadline': exam.end_time.isoformat() if exam.end_time else '',
+        }
+        for exam in exams
+    ]
+    return JsonResponse(exam_list, safe=False)
+
+@login_required
+def api_student_profile(request):
+    if not hasattr(request.user, 'student_profile'):
+        return JsonResponse({'error': 'Not a student'}, status=403)
+    student = request.user.student_profile
+    user = request.user
+    data = {
+        'fullName': f"{user.first_name} {user.last_name}".strip(),
+        'email': user.email,
+        'phoneNumber': getattr(user, 'phone_number', ''),
+        'department': student.department,
+        'semester': student.semester,
+        'studentId': user.username,
+    }
+    return JsonResponse(data)
+
+@login_required
+def api_student_results(request):
+    if not hasattr(request.user, 'student_profile'):
+        return JsonResponse({'error': 'Not a student'}, status=403)
+    student = request.user.student_profile
+    results = StudentExamResult.objects.filter(student=student).select_related('exam')
+    data = [
+        {
+            'examTitle': result.exam.title,
+            'obtainedMarks': result.obtained_marks,
+            'status': result.status,
+            'submittedAt': result.submitted_at.isoformat() if result.submitted_at else '',
+        }
+        for result in results
+    ]
+    return JsonResponse(data, safe=False)
+
+    

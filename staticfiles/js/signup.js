@@ -79,22 +79,38 @@ $(document).ready(function() {
         const csrftoken = $('[name=csrfmiddlewaretoken]').val();
         
         // Prepare JSON data
-        const jsonData = {
-            username: $("#username").val(),
+        let jsonData = {
             email: $("#email").val(),
-            password: password,
-            role: userType
+            password: password
         };
         
-        // Add additional fields based on user type
         if (userType === 'student') {
-            jsonData.student_id = $("#student_id").val();
-            jsonData.department = $("#student_department").val();
+            const studentId = $("#student_id").val();
+            const department = $("#student_department").val();
+            jsonData.username = studentId;
+            jsonData.department = department;
             jsonData.semester = $("#semester").val();
+            // Check department code in ID matches selected department
+            const idDeptCode = getDeptCodeFromId(studentId);
+            const selectedDeptCode = getDeptCodeFromDeptName(department);
+            if (idDeptCode && idDeptCode !== selectedDeptCode) {
+                $("#error-message").text("ID department code does not match selected department").fadeIn();
+                return false;
+            }
         } else if (userType === 'teacher') {
-            jsonData.department = $("#department").val();
+            const teacherId = $("#teacher_id").val();
+            const department = $("#department").val();
+            jsonData.username = teacherId;
+            jsonData.department = department;
+            // Check department code in ID matches selected department
+            const idDeptCode = getDeptCodeFromId(teacherId);
+            const selectedDeptCode = getDeptCodeFromDeptName(department);
+            if (idDeptCode && idDeptCode !== selectedDeptCode) {
+                $("#error-message").text("ID department code does not match selected department").fadeIn();
+                return false;
+            }
         }
-        
+
         // Disable submit button and show loading state
         const submitBtn = $(this).find("button[type='submit']");
         const originalText = submitBtn.html();
@@ -114,19 +130,17 @@ $(document).ready(function() {
                 if (response.redirect) {
                     // Store username in session storage
                     sessionStorage.setItem('new_user_username', jsonData.username);
-                    
                     // Show success toast notification
                     const toast = $('<div class="toast success">Account created successfully! Redirecting...</div>');
                     $('body').append(toast);
                     toast.fadeIn(300);
-                    
                     // Redirect to the appropriate page
                     setTimeout(function() {
                         window.location.href = response.redirect;
                     }, 2000);
                 } else {
                     // Show error toast notification
-                    const toast = $('<div class="toast error">An error occurred during signup</div>');
+                    const toast = $('<div class="toast error">' + (response.error || 'An error occurred during signup') + '</div>');
                     $('body').append(toast);
                     toast.fadeIn(300);
                     setTimeout(() => toast.fadeOut(300, () => toast.remove()), 3000);
@@ -135,8 +149,13 @@ $(document).ready(function() {
             },
             error: function(xhr) {
                 let errorMessage = "An error occurred during signup";
-                if (xhr.responseJSON && xhr.responseJSON.error) {
-                    errorMessage = xhr.responseJSON.error;
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.error) {
+                        errorMessage = response.error;
+                    }
+                } catch (e) {
+                    console.error('Error parsing response:', e);
                 }
                 // Show error toast notification
                 const toast = $('<div class="toast error">' + errorMessage + '</div>');
@@ -147,4 +166,25 @@ $(document).ready(function() {
             }
         });
     });
+
+    // Helper to map department select value to ID code
+    function getDeptCodeFromDeptName(deptName) {
+        const mapping = {
+            'CSE': 'cs',
+            'ISE': 'is',
+            'CSD': 'cg',
+            'AIML': 'ml',
+            'AIDS': 'ds'
+        };
+        return mapping[deptName] || deptName;
+    }
+
+    // Helper to extract department code from ID
+    function getDeptCodeFromId(id) {
+        if (typeof id === 'string' && id.length >= 7) {
+            // Example: 1mp23cg040 -> cg
+            return id.substring(5, 7).toLowerCase();
+        }
+        return null;
+    }
 });

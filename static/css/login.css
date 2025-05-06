@@ -35,6 +35,8 @@ body {
 .login-header {
     text-align: center;
     margin-bottom: 2rem;
+    position: relative;
+    padding-top: 48px; /* Add this line to make space for the back button */
 }
 
 .login-header h2 {
@@ -251,7 +253,6 @@ body {
     transform: scale(1.05);
     animation: subtle-pulse 2s infinite;
     border-color: #007bff;
-    background-color: rgba(0, 123, 255, 0.1);
 }
 
 .user-type.selected .icon-circle {
@@ -410,8 +411,9 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 /* Back Button Styles */
 .back-btn {
     position: absolute;
-    top: 20px;
-    left: 20px;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
     background: none;
     border: none;
     color: var(--text-muted);
@@ -486,9 +488,24 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     background-color: #dc3545 !important;
 }
 
-/* User type selection styles */
-.user-type.selected {
-    border-color: #007bff;
-    background-color: rgba(0, 123, 255, 0.1);
+/* Custom Scrollbar Styles (matches reset.css) */
+.login-container::-webkit-scrollbar {
+    width: 10px;
+    background: var(--div-color);
+}
+.login-container::-webkit-scrollbar-track {
+    background: var(--div-color);
+}
+.login-container::-webkit-scrollbar-thumb {
+    background: var(--div-element);
+    border-radius: var(--border-radius-lg);
+}
+.login-container::-webkit-scrollbar-thumb:hover {
+    background: var(--highlight-color);
+}
+/* For Firefox */
+.login-container {
+    scrollbar-width: thin;
+    scrollbar-color: var(--div-element) var(--div-color);
 }
 

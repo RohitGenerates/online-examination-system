@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <nav class="dashboard-nav">
+        <div class="nav-header">
+            <img src="{% static 'images/logo.png' %}" alt="Logo" class="logo">
+            <h1>Admin Dashboard</h1>
+        </div>
+        <div class="user-info">
+            <i class="fas fa-user user-avatar"></i>
+            <span class="user-name">{{ user.username }}</span>
+            <a href="{% url 'accounts:logout' %}" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </nav>
+
+    <main class="dashboard-main">
+        <div class="dashboard-options">
+            <div class="option-card" id="manageUsersOption">
+                <div class="card-icon"><i class="fas fa-users"></i></div>
+                <h3>Manage Users</h3>
+            </div>
+            <div class="option-card" id="manageExamsOption">
+                <div class="card-icon"><i class="fas fa-file-alt"></i></div>
+                <h3>Manage Exams</h3>
+            </div>
+            <div class="option-card" id="viewReportsOption">
+                <div class="card-icon"><i class="fas fa-chart-bar"></i></div>
+                <h3>View Reports</h3>
+            </div>
+            <div class="option-card" id="settingsOption">
+                <div class="card-icon"><i class="fas fa-cog"></i></div>
+                <h3>Settings</h3>
+            </div>
+        </div>
+
+        <div id="dynamicContentContainer">
+            <div class="welcome-message">
+                <h2>Welcome to Admin Dashboard</h2>
+                <p>Select an option from the menu above to get started.</p>
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/reset.css' %}">
+<link rel="stylesheet" href="{% static 'css/admin-dashboard.css' %}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="{% static 'js/admin-dashboard.js' %}"></script>
+{% endblock %}
