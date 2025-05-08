@@ -540,7 +540,9 @@ $(document).ready(function() {
             url: '/api/teacher/profile/',
             method: 'GET',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token')
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
             },
             success: function(response) {
                 if (response.success) {
@@ -597,7 +599,9 @@ $(document).ready(function() {
             url: '/api/teacher/profile/',
             method: 'PUT',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token')
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
             },
             data: updatedData,
             success: function(response) {

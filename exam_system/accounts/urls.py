@@ -19,8 +19,8 @@ urlpatterns = [
     
     # Profile URLs
     path('profile/', views.profile, name='profile'),
-    path('api/student/profile/update/', views.update_student_profile, name='update_student_profile'),
-    path('api/teacher/profile/update/', views.update_teacher_profile, name='update_teacher_profile'),
+    path('api/student/profile/', views.student_profile, name='student_profile'),
+    path('api/teacher/profile/', views.teacher_profile, name='teacher_profile'),
     
     # Student Views
     path('take-exam/', views.take_exam, name='take-exam'),

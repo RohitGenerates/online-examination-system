@@ -258,9 +258,12 @@ $(document).ready(function() {
         const MAX_RETRIES = 3;
 
         function loadProfileData() {
-            fetch('/api/student/profile/update/', {
+            fetch('/api/student/profile/', {
+                method: 'GET',
                 headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/json'
                 }
             })
             .then(response => {
@@ -270,12 +273,13 @@ $(document).ready(function() {
                 return response.json();
             })
             .then(data => {
-                $('#fullName').val(data.fullName);
-                $('#email').val(data.email);
-                $('#phoneNumber').val(data.phoneNumber);
-                $('#department').val(data.department);
-                $('#semester').val(data.semester);
-                $('#studentId').val(data.studentId);
+                const fullName = `${data.data.first_name || ''} ${data.data.last_name || ''}`.trim();
+                $('#fullName').val(fullName);
+                $('#email').val(data.data.email || '');
+                $('#phoneNumber').val(data.data.phone_number || '');
+                $('#department').val(data.data.department || '');
+                $('#semester').val(data.data.semester || '');
+                $('#studentId').val(data.data.username || '');
                 
                 originalData = {
                     fullName: data.fullName,
@@ -289,7 +293,7 @@ $(document).ready(function() {
             })
             .catch(error => {
                 console.error('Error loading profile:', error);
-                const errorMessage = error.response?.status === 502 
+                const errorMessage = error.message.includes('502') 
                     ? 'Server is temporarily unavailable. Please try again in a moment.'
                     : 'Failed to load profile data. Please refresh the page.';
                 $('#profileUpdateMessage').html(`<div class="error">${errorMessage}</div>`);
@@ -305,7 +309,7 @@ $(document).ready(function() {
             $('#saveChanges').prop('disabled', true);
             $('#profileUpdateMessage').html('<div class="info">Updating profile...</div>');
 
-            fetch('/api/student/profile/update/', {
+            fetch('/api/student/profile/', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -377,11 +381,16 @@ $(document).ready(function() {
         $('#studentProfileForm').on('submit', function(e) {
             e.preventDefault();
             
-            const formData = {
-                fullName: $('#fullName').val(),
-                phoneNumber: $('#phoneNumber').val(),
-                department: $('#department').val(),
-                semester: parseInt($('#semester').val())
+            const nameParts = formData.fullName.trim().split(/\s+/);
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+
+            const data = {
+                first_name: firstName,
+                last_name: lastName,
+                phone_number: formData.phoneNumber || '',
+                department: formData.department || '',
+                semester: parseInt(formData.semester) || ''
             };
 
             updateProfile(formData);

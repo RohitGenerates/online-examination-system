@@ -258,9 +258,12 @@ $(document).ready(function() {
         const MAX_RETRIES = 3;
 
         function loadProfileData() {
-            fetch('/api/student/profile', {
+            fetch('/api/student/profile/', {
+                method: 'GET',
                 headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/json'
                 }
             })
             .then(response => {
@@ -305,7 +308,7 @@ $(document).ready(function() {
             $('#saveChanges').prop('disabled', true);
             $('#profileUpdateMessage').html('<div class="info">Updating profile...</div>');
 
-            fetch('/api/student/profile', {
+            fetch('/api/student/profile/', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
