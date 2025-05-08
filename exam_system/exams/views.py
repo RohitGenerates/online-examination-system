@@ -37,48 +37,61 @@ def exam_list(request):
     context = {'exams': exams}
     return render(request, 'exams/exam_list.html', context)
 
-@login_required
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def create_exam(request):
     if not hasattr(request.user, 'teacher_profile'):
-        raise PermissionDenied
+        return Response({'success': False, 'message': 'Not a teacher'}, status=403)
     
     if request.method == 'GET':
         return render(request, 'exams/create_exam.html')
     
     elif request.method == 'POST':
         try:
-            data = json.loads(request.body)
-            title = data.get('title')
-            subject = data.get('subject')
-            department = data.get('department')
-            semester = data.get('semester')
-            duration = data.get('duration')
-            passing_score = data.get('passing_score')
-            start_time = data.get('start_time')
-            end_time = data.get('end_time')
-            questions = data.get('questions', [])
+            data = request.data
+            print("Received data:", data)  # Debug log
             
-            if not all([title, subject, department, semester, duration, passing_score, start_time, end_time]):
-                return JsonResponse({'error': 'Missing required fields'}, status=400)
-            
+            # Validate required fields
+            required_fields = ['title', 'subject', 'duration', 'deadline', 'totalQuestions']
+            for field in required_fields:
+                if field not in data:
+                    return Response({'success': False, 'message': f'Missing required field: {field}'}, status=400)
+
+            # Convert deadline to datetime
+            try:
+                deadline = datetime.fromisoformat(data['deadline'].replace('Z', '+00:00'))
+            except ValueError as e:
+                return Response({'success': False, 'message': f'Invalid deadline format: {str(e)}'}, status=400)
+
             # Create exam
             exam = Exam.objects.create(
-                title=title,
-                subject=subject,
-                department=department,
-                semester=semester,
-                duration=duration,
-                passing_score=passing_score,
-                start_time=start_time,
-                end_time=end_time,
+                title=data['title'],
+                subject=data['subject'],
+                department=request.user.teacher_profile.department,  # Get department from teacher profile
+                semester=1,  # Default to semester 1, can be updated later
+                duration=int(data['duration']),
+                passing_score=50,  # Default passing score
+                start_time=deadline,
+                end_time=deadline,
                 created_by=request.user.teacher_profile,
-                questions=questions
+                questions=[]  # Initialize with empty questions array
             )
-            
-            return JsonResponse({'message': 'Exam created successfully'})
-            
+
+            print(f"Created exam with ID: {exam.id}")  # Debug log
+
+            return Response({
+                'success': True,
+                'message': 'Exam created successfully',
+                'data': {
+                    'exam_id': exam.id,
+                    'title': exam.title
+                }
+            })
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            print(f"Error creating exam: {str(e)}")  # Debug log
+            import traceback
+            print(traceback.format_exc())  # Print full traceback
+            return Response({'success': False, 'message': str(e)}, status=500)
 
 @login_required
 def take_exam(request, exam_id):
@@ -181,22 +194,6 @@ def api_student_exams(request):
         for exam in exams
     ]
     return JsonResponse(exam_list, safe=False)
-
-@login_required
-def api_student_profile(request):
-    if not hasattr(request.user, 'student_profile'):
-        return JsonResponse({'error': 'Not a student'}, status=403)
-    student = request.user.student_profile
-    user = request.user
-    data = {
-        'fullName': f"{user.first_name} {user.last_name}".strip(),
-        'email': user.email,
-        'phoneNumber': getattr(user, 'phone_number', ''),
-        'department': student.department,
-        'semester': student.semester,
-        'studentId': user.username,
-    }
-    return JsonResponse(data)
 
 @login_required
 def api_student_results(request):
@@ -476,5 +473,24 @@ def generate_report(request, report_type):
             'success': False,
             'message': str(e)
         }, status=500)
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def add_questions(request, exam_id):
+    if not hasattr(request.user, 'teacher_profile'):
+        return Response({'success': False, 'message': 'Not a teacher'}, status=403)
+    
+    exam = get_object_or_404(Exam, id=exam_id)
+    
+    if request.method == 'GET':
+        return render(request, 'exams/add_questions.html', {'exam': exam})
+    
+    elif request.method == 'POST':
+        try:
+            data = request.data
+            # Add question logic here
+            return Response({'success': True, 'message': 'Questions added successfully'})
+        except Exception as e:
+            return Response({'success': False, 'message': str(e)}, status=500)
 
     

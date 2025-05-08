@@ -564,68 +564,56 @@ def student_profile(request):
             print(f"Error updating student profile: {str(e)}")
             return Response({'success': False, 'message': str(e)}, status=500)
 
-@api_view(['GET', 'PUT'])  # Using GET for retrieving profile, PUT for updating
+@api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticated])
 def teacher_profile(request):
     if not hasattr(request.user, 'teacher_profile'):
-        return Response({'success': False, 'message': 'Not a teacher account'}, status=403)
+        return Response({'success': False, 'message': 'Not a teacher'}, status=403)
     
     teacher = request.user.teacher_profile
+    user = request.user
     
     if request.method == 'GET':
-        # Return current profile data
-        return Response({
+        data = {
             'success': True,
             'data': {
-                'first_name': request.user.first_name,
-                'last_name': request.user.last_name,
-                'email': request.user.email,
-                'phone_number': getattr(request.user, 'phone_number', ''),
-                'department': getattr(teacher, 'department', ''),
-                'username': request.user.username
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'email': user.email,
+                'phone_number': getattr(user, 'phone_number', ''),
+                'department': teacher.department,
+                'username': user.username
             }
-        })
+        }
+        return Response(data)
     
     elif request.method == 'PUT':
         try:
-            # Parse the JSON data from the request body
             data = json.loads(request.body)
-            user = request.user
             
-            # Update User model fields
-            if 'first_name' in data:
-                user.first_name = data['first_name']
-            if 'last_name' in data:
-                user.last_name = data['last_name']
-            if 'phone_number' in data:
-                # Make sure the phone_number field exists on your User model
-                if hasattr(user, 'phone_number'):
-                    user.phone_number = data['phone_number']
-            
-            # Update TeacherProfile model fields
-            if 'department' in data:
-                teacher.department = data['department']
-            
-            # Save both models to persist changes
+            # Update user fields
+            user.first_name = data.get('first_name', user.first_name)
+            user.last_name = data.get('last_name', user.last_name)
+            user.phone_number = data.get('phone_number', user.phone_number)
             user.save()
-            teacher.save()
             
-            # Log successful save for debugging
-            print(f"Profile updated successfully for user {user.username}")
-            print(f"Updated data: {data}")
+            # Update teacher profile fields
+            teacher.department = data.get('department', teacher.department)
+            teacher.save()
             
             return Response({
                 'success': True,
-                'message': 'Profile updated successfully',
                 'data': {
                     'first_name': user.first_name,
                     'last_name': user.last_name,
                     'email': user.email,
-                    'phone_number': getattr(user, 'phone_number', ''),
+                    'phone_number': user.phone_number,
                     'department': teacher.department,
                     'username': user.username
                 }
             })
         except Exception as e:
-            print(f"Error updating teacher profile: {str(e)}")
-            return Response({'success': False, 'message': str(e)}, status=500)
+            return Response({
+                'success': False,
+                'message': str(e)
+            }, status=400)

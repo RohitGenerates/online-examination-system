@@ -184,22 +184,33 @@ $(document).ready(function() {
     function createExam() {
         // Get form values
         const examData = {
-            title: $("#examTitle").val(),
+            title: $("#examTitle").val().trim(),
             subject: $("#subject").val(),
-            duration: $("#duration").val(),
+            duration: parseInt($("#duration").val()),
             deadline: $("#deadline").val(),
-            totalQuestions: $("#totalQuestions").val(),
-            status: "draft"
+            totalQuestions: parseInt($("#totalQuestions").val())
         };
         
         // Validate inputs
         if (!examData.title || !examData.subject || !examData.duration || !examData.deadline || !examData.totalQuestions) {
-            showMessage("Please fill in all fields", "error");
+            showToast("Please fill in all fields", "error");
+            return;
+        }
+
+        // Validate numeric fields
+        if (isNaN(examData.duration) || examData.duration <= 0) {
+            showToast("Duration must be a positive number", "error");
+            return;
+        }
+        if (isNaN(examData.totalQuestions) || examData.totalQuestions <= 0) {
+            showToast("Total questions must be a positive number", "error");
             return;
         }
         
         // Show loading state
         $(".primary-btn").html('<i class="fas fa-spinner fa-spin"></i> Creating...').prop('disabled', true);
+        
+        console.log('Sending exam data:', examData); // Debug log
         
         // Make API call to create exam
         $.ajax({
@@ -207,22 +218,23 @@ $(document).ready(function() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + localStorage.getItem('token'),
                 'X-CSRFToken': getCookie('csrftoken')
             },
             data: JSON.stringify(examData),
             success: function(response) {
+                console.log('Create exam response:', response); // Debug log
                 if (response.success) {
                     showToast('Exam created successfully!', 'success');
-                    // After successful creation, redirect to question editor
-                    window.location.href = `/exams/manage/${response.data.exam_id}/`;
+                    // After successful creation, redirect to the add questions page
+                    window.location.href = `/exams/create/${response.data.exam_id}/`;
                 } else {
                     showToast(response.message || 'Failed to create exam', 'error');
                     $(".primary-btn").html('<i class="fas fa-plus-circle"></i> Create Exam & Add Questions').prop('disabled', false);
                 }
             },
             error: function(xhr, status, error) {
-                showToast(error || 'Error creating exam', 'error');
+                console.error('Error creating exam:', xhr.responseText); // Debug log
+                showToast(xhr.responseJSON?.message || error || 'Error creating exam', 'error');
                 $(".primary-btn").html('<i class="fas fa-plus-circle"></i> Create Exam & Add Questions').prop('disabled', false);
             }
         });
@@ -488,14 +500,14 @@ $(document).ready(function() {
     }
 
     function loadProfileForm() {
-        $("#dynamicContentContainer").html(`
+        $("#dynamicContentContainer").hide().html(`
             <div class="profile-container">
                 <h2>Update Your Profile</h2>
                 <form id="teacherProfileForm" class="profile-form">
                     <div class="form-group">
                         <div class="input-with-icon">
                             <i class="fas fa-user"></i>
-                            <input type="text" id="teacherName" name="name" placeholder="Full Name" required>
+                            <input type="text" id="teacherName" name="fullName" placeholder="Full Name" required>
                         </div>
                     </div>
                     <div class="form-group">
@@ -507,7 +519,7 @@ $(document).ready(function() {
                     <div class="form-group">
                         <div class="input-with-icon">
                             <i class="fas fa-phone"></i>
-                            <input type="tel" id="teacherPhone" name="phone" placeholder="Phone Number" pattern="[0-9]{10}" title="Please enter a valid 10-digit phone number" required>
+                            <input type="tel" id="teacherPhone" name="phoneNumber" placeholder="Phone Number" pattern="[0-9]{10}" title="Please enter a valid 10-digit phone number" required>
                         </div>
                     </div>
                     <div class="form-group">
@@ -517,7 +529,7 @@ $(document).ready(function() {
                         </div>
                     </div>
                     <div class="form-actions">
-                    <button type="button" class="btn reset-btn" id="resetForm" style="display: none;">Reset Changes</button>
+                        <button type="button" class="btn reset-btn" id="resetForm" style="display: none;">Reset Changes</button>
                         <button type="submit" class="btn submit-btn" id="saveChanges" disabled>
                             <i class="fas fa-save"></i> Save Changes
                         </button>
@@ -527,113 +539,168 @@ $(document).ready(function() {
             </div>
         `).slideDown(300);
 
-        loadProfileData();
-        setupProfileFormHandlers();
+        let originalData = {};
+        let retryCount = 0;
+        const MAX_RETRIES = 3;
+
+        // Load initial profile data
+        loadProfileData()
+            .then(data => {
+                console.log('Loaded initial data:', data); // Debug log
+                originalData = data;
+                $('#profileUpdateMessage').empty();
+                retryCount = 0;
+            })
+            .catch(error => {
+                console.error('Error loading profile:', error);
+                const errorMessage = error.message.includes('502') 
+                    ? 'Server is temporarily unavailable. Please try again in a moment.'
+                    : 'Failed to load profile data. Please refresh the page.';
+                $('#profileUpdateMessage').html(`<div class="error">${errorMessage}</div>`);
+                
+                if (retryCount < MAX_RETRIES) {
+                    retryCount++;
+                    setTimeout(() => loadProfileData(), 2000 * retryCount);
+                }
+            });
+
+        // Form change handlers
+        function checkFormChanges() {
+            const currentData = {
+                fullName: $('#teacherName').val(),
+                phoneNumber: $('#teacherPhone').val(),
+                department: $('#teacherDepartment').val()
+            };
+
+            const hasChanges = Object.keys(originalData).some(key => originalData[key] !== currentData[key]);
+            $('#saveChanges').prop('disabled', !hasChanges);
+            $('#resetForm').toggle(hasChanges);
+        }
+
+        $('#teacherProfileForm input, #teacherProfileForm select').on('input change', checkFormChanges);
+
+        $('#resetForm').click(function() {
+            $('#teacherName').val(originalData.fullName);
+            $('#teacherPhone').val(originalData.phoneNumber);
+            $('#teacherDepartment').val(originalData.department);
+            checkFormChanges();
+            $('#profileUpdateMessage').empty();
+        });
+
+        $('#teacherProfileForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                fullName: $('#teacherName').val(),
+                phoneNumber: $('#teacherPhone').val(),
+                department: $('#teacherDepartment').val()
+            };
+
+            console.log('Submitting form data:', formData); // Debug log
+
+            $('#saveChanges').prop('disabled', true);
+            $('#profileUpdateMessage').html('<div class="info">Updating profile...</div>');
+
+            updateProfile(formData)
+                .then(data => {
+                    console.log('Profile update successful:', data); // Debug log
+                    $('#profileUpdateMessage').html('<div class="success">Profile updated successfully!</div>');
+                    originalData = {
+                        fullName: data.data.first_name + ' ' + data.data.last_name,
+                        phoneNumber: data.data.phone_number || '',
+                        department: data.data.department || ''
+                    };
+                    checkFormChanges();
+                    retryCount = 0;
+                })
+                .catch(error => {
+                    console.error('Error updating profile:', error);
+                    const errorMessage = error.message.includes('502')
+                        ? 'Server is temporarily unavailable. Your changes will be saved when connection is restored.'
+                        : 'Failed to update profile. Please try again.';
+                    
+                    $('#profileUpdateMessage').html(`<div class="error">${errorMessage}</div>`);
+                    $('#saveChanges').prop('disabled', false);
+
+                    if (error.message.includes('502') && retryCount < MAX_RETRIES) {
+                        retryCount++;
+                        setTimeout(() => updateProfile(formData), 2000 * retryCount);
+                    }
+                });
+        });
     }
 
     function loadProfileData() {
-        // Show loading state
-        $("#profileForm").html('<div class="loading">Loading profile...</div>');
-        
-        // Make API call to fetch teacher profile
-        $.ajax({
-            url: '/api/teacher/profile/',
+        console.log('Loading profile data...'); // Debug log
+        return fetch('/accounts/api/teacher/profile/', {
             method: 'GET',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token'),
-                'X-CSRFToken': getCookie('csrftoken'),
-                'Content-Type': 'application/json'
-            },
-            success: function(response) {
-                if (response.success) {
-                    originalProfileData = response.data;
-                    displayProfileData(response.data);
-                } else {
-                    showToast('Failed to load profile: ' + response.message, 'error');
-                    $("#profileForm").html('<div class="error">Failed to load profile.</div>');
-                }
-            },
-            error: function(xhr, status, error) {
-                showToast('Error loading profile: ' + error, 'error');
-                $("#profileForm").html('<div class="error">Error loading profile.</div>');
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
             }
+        })
+        .then(response => {
+            console.log('Profile response status:', response.status); // Debug log
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received profile data:', data); // Debug log
+            if (data.success) {
+                // Fill in the form fields with the existing data
+                const fullName = `${data.data.first_name || ''} ${data.data.last_name || ''}`.trim();
+                $('#teacherName').val(fullName);
+                $('#teacherEmail').val(data.data.email || '');
+                $('#teacherPhone').val(data.data.phone_number || '');
+                $('#teacherDepartment').val(data.data.department || '');
+                
+                // Return data for change tracking
+                return {
+                    fullName: fullName,
+                    phoneNumber: data.data.phone_number || '',
+                    department: data.data.department || ''
+                };
+            }
+            throw new Error(data.message || 'Failed to load profile data');
         });
     }
 
-    function setupProfileFormHandlers() {
-        $("#teacherProfileForm").on('input change', checkFormChanges);
+    function updateProfile(formData) {
+        console.log('Updating profile with data:', formData); // Debug log
         
-        $("#teacherProfileForm").submit(function(e) {
-            e.preventDefault();
-            updateProfile();
-        });
-    }
+        const nameParts = formData.fullName.trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
 
-    function checkFormChanges() {
-        const currentData = {
-            name: $("#teacherName").val(),
-            phone: $("#teacherPhone").val(),
-            department: $("#teacherDepartment").val()
+        const data = {
+            first_name: firstName,
+            last_name: lastName,
+            phone_number: formData.phoneNumber || '',
+            department: formData.department || ''
         };
 
-        const hasChanges = Object.keys(originalProfileData).some(
-            key => originalProfileData[key] !== currentData[key]
-        );
-        
-        $(".save-profile-btn").prop('disabled', !hasChanges);
-    }
+        console.log('Sending update data:', data); // Debug log
 
-    function updateProfile() {
-        const updatedData = {
-            name: $("#teacherName").val(),
-            email: $("#teacherEmail").val(),
-            phone: $("#teacherPhone").val(),
-            department: $("#teacherDepartment").val()
-        };
-        
-        // Show loading state
-        $(".save-profile-btn").html('<i class="fas fa-spinner fa-spin"></i> Saving...').prop('disabled', true);
-        
-        // Make API call to update profile
-        $.ajax({
-            url: '/api/teacher/profile/',
+        return fetch('/accounts/api/teacher/profile/', {
             method: 'PUT',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token'),
-                'X-CSRFToken': getCookie('csrftoken'),
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
             },
-            data: updatedData,
-            success: function(response) {
-                if (response.success) {
-                    originalProfileData = updatedData;
-                    showToast('Profile updated successfully', 'success');
-                    $(".save-profile-btn").html('<i class="fas fa-save"></i> Save Changes').prop('disabled', false);
-                } else {
-                    showToast('Failed to update profile: ' + response.message, 'error');
-                    $(".save-profile-btn").html('<i class="fas fa-save"></i> Save Changes').prop('disabled', false);
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            console.log('Update response status:', response.status); // Debug log
+            if (!response.ok) {
+                if (response.status === 502) {
+                    throw new Error('SERVER_ERROR');
                 }
-            },
-            error: function(xhr, status, error) {
-                showToast('Error updating profile: ' + error, 'error');
-                $(".save-profile-btn").html('<i class="fas fa-save"></i> Save Changes').prop('disabled', false);
+                throw new Error('UPDATE_FAILED');
             }
+            return response.json();
         });
-    }
-
-    function displayProfileData(profileData) {
-        $("#teacherName").val(profileData.name);
-        $("#teacherEmail").val(profileData.email);
-        $("#teacherPhone").val(profileData.phone);
-        $("#teacherDepartment").val(profileData.department);
-        
-        originalProfileData = {
-            name: profileData.name,
-            phone: profileData.phone,
-            department: profileData.department
-        };
-        
-        checkFormChanges();
     }
 
     // Utility functions

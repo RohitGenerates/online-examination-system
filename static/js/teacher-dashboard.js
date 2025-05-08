@@ -184,22 +184,33 @@ $(document).ready(function() {
     function createExam() {
         // Get form values
         const examData = {
-            title: $("#examTitle").val(),
+            title: $("#examTitle").val().trim(),
             subject: $("#subject").val(),
-            duration: $("#duration").val(),
+            duration: parseInt($("#duration").val()),
             deadline: $("#deadline").val(),
-            totalQuestions: $("#totalQuestions").val(),
-            status: "draft"
+            totalQuestions: parseInt($("#totalQuestions").val())
         };
         
         // Validate inputs
         if (!examData.title || !examData.subject || !examData.duration || !examData.deadline || !examData.totalQuestions) {
-            showMessage("Please fill in all fields", "error");
+            showToast("Please fill in all fields", "error");
+            return;
+        }
+
+        // Validate numeric fields
+        if (isNaN(examData.duration) || examData.duration <= 0) {
+            showToast("Duration must be a positive number", "error");
+            return;
+        }
+        if (isNaN(examData.totalQuestions) || examData.totalQuestions <= 0) {
+            showToast("Total questions must be a positive number", "error");
             return;
         }
         
         // Show loading state
         $(".primary-btn").html('<i class="fas fa-spinner fa-spin"></i> Creating...').prop('disabled', true);
+        
+        console.log('Sending exam data:', examData); // Debug log
         
         // Make API call to create exam
         $.ajax({
@@ -207,22 +218,23 @@ $(document).ready(function() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + localStorage.getItem('token'),
                 'X-CSRFToken': getCookie('csrftoken')
             },
             data: JSON.stringify(examData),
             success: function(response) {
+                console.log('Create exam response:', response); // Debug log
                 if (response.success) {
                     showToast('Exam created successfully!', 'success');
-                    // After successful creation, redirect to question editor
-                    window.location.href = `/exams/manage/${response.data.exam_id}/`;
+                    // After successful creation, redirect to the add questions page
+                    window.location.href = `/exams/create/${response.data.exam_id}/`;
                 } else {
                     showToast(response.message || 'Failed to create exam', 'error');
                     $(".primary-btn").html('<i class="fas fa-plus-circle"></i> Create Exam & Add Questions').prop('disabled', false);
                 }
             },
             error: function(xhr, status, error) {
-                showToast(error || 'Error creating exam', 'error');
+                console.error('Error creating exam:', xhr.responseText); // Debug log
+                showToast(xhr.responseJSON?.message || error || 'Error creating exam', 'error');
                 $(".primary-btn").html('<i class="fas fa-plus-circle"></i> Create Exam & Add Questions').prop('disabled', false);
             }
         });
@@ -620,7 +632,7 @@ $(document).ready(function() {
 
     function loadProfileData() {
         console.log('Loading profile data...'); // Debug log
-        return fetch('/api/teacher/profile/', {
+        return fetch('/accounts/api/teacher/profile/', {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -671,7 +683,7 @@ $(document).ready(function() {
 
         console.log('Sending update data:', data); // Debug log
 
-        return fetch('/api/teacher/profile/', {
+        return fetch('/accounts/api/teacher/profile/', {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -682,28 +694,12 @@ $(document).ready(function() {
         .then(response => {
             console.log('Update response status:', response.status); // Debug log
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                if (response.status === 502) {
+                    throw new Error('SERVER_ERROR');
+                }
+                throw new Error('UPDATE_FAILED');
             }
             return response.json();
-        })
-        .then(data => {
-            console.log('Update response data:', data); // Debug log
-            if (data.success) {
-                // Update form fields with the returned data
-                const fullName = `${data.data.first_name || ''} ${data.data.last_name || ''}`.trim();
-                $('#teacherName').val(fullName);
-                $('#teacherPhone').val(data.data.phone_number || '');
-                $('#teacherDepartment').val(data.data.department || '');
-                
-                // Show success message to user
-                showToast('Profile updated successfully', 'success');
-                return data;
-            }
-            throw new Error(data.message || 'Failed to update profile');
-        })
-        .catch(error => {
-            console.error('Error updating profile:', error);
-            showToast('Failed to update profile: ' + error.message, 'error');
         });
     }
 

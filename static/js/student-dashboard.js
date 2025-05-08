@@ -258,38 +258,46 @@ $(document).ready(function() {
         const MAX_RETRIES = 3;
 
         function loadProfileData() {
-            fetch('/api/student/profile/', {
+            console.log('Loading profile data...');
+            return fetch('/accounts/api/student/profile/', {
                 method: 'GET',
                 headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('token'),
-                    'X-CSRFToken': getCookie('csrftoken'),
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
                 }
             })
             .then(response => {
+                console.log('Profile response status:', response.status);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 return response.json();
             })
             .then(data => {
-                const fullName = `${data.data.first_name || ''} ${data.data.last_name || ''}`.trim();
-                $('#fullName').val(fullName);
-                $('#email').val(data.data.email || '');
-                $('#phoneNumber').val(data.data.phone_number || '');
-                $('#department').val(data.data.department || '');
-                $('#semester').val(data.data.semester || '');
-                $('#studentId').val(data.data.username || '');
-                
-                originalData = {
-                    fullName: data.fullName,
-                    phoneNumber: data.phoneNumber,
-                    department: data.department,
-                    semester: data.semester
-                };
-
-                $('#profileUpdateMessage').empty();
-                retryCount = 0;
+                console.log('Received profile data:', data);
+                if (data.success) {
+                    // Fill in the form fields with the existing data
+                    const fullName = `${data.data.first_name || ''} ${data.data.last_name || ''}`.trim();
+                    $('#fullName').val(fullName);
+                    $('#email').val(data.data.email || '');
+                    $('#phoneNumber').val(data.data.phone_number || '');
+                    $('#department').val(data.data.department || '');
+                    $('#semester').val(data.data.semester || '');
+                    $('#studentId').val(data.data.username || '');
+                    
+                    // Store original data for change tracking
+                    originalData = {
+                        fullName: fullName,
+                        phoneNumber: data.data.phone_number || '',
+                        department: data.data.department || '',
+                        semester: data.data.semester || ''
+                    };
+                    
+                    $('#profileUpdateMessage').empty();
+                    retryCount = 0;
+                    return originalData;
+                }
+                throw new Error(data.message || 'Failed to load profile data');
             })
             .catch(error => {
                 console.error('Error loading profile:', error);
@@ -305,18 +313,15 @@ $(document).ready(function() {
             });
         }
 
-        function updateProfile(formData) {
-            $('#saveChanges').prop('disabled', true);
-            $('#profileUpdateMessage').html('<div class="info">Updating profile...</div>');
-
-            fetch('/api/student/profile/', {
+        function updateProfile(data) {
+            console.log('Updating profile with data:', data);
+            return fetch('/accounts/api/student/profile/', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + localStorage.getItem('token'),
                     'X-CSRFToken': getCookie('csrftoken')
                 },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(data)
             })
             .then(response => {
                 if (!response.ok) {
@@ -326,27 +331,6 @@ $(document).ready(function() {
                     throw new Error('UPDATE_FAILED');
                 }
                 return response.json();
-            })
-            .then(data => {
-                $('#profileUpdateMessage').html('<div class="success">Profile updated successfully!</div>');
-                originalData = { ...formData };
-                localStorage.setItem('fullName', formData.fullName);
-                checkFormChanges();
-                retryCount = 0;
-            })
-            .catch(error => {
-                console.error('Error updating profile:', error);
-                const errorMessage = error.message === 'SERVER_ERROR'
-                    ? 'Server is temporarily unavailable. Your changes will be saved when connection is restored.'
-                    : 'Failed to update profile. Please try again.';
-                
-                $('#profileUpdateMessage').html(`<div class="error">${errorMessage}</div>`);
-                $('#saveChanges').prop('disabled', false);
-
-                if (error.message === 'SERVER_ERROR' && retryCount < MAX_RETRIES) {
-                    retryCount++;
-                    setTimeout(() => updateProfile(formData), 2000 * retryCount);
-                }
             });
         }
 
@@ -381,10 +365,20 @@ $(document).ready(function() {
         $('#studentProfileForm').on('submit', function(e) {
             e.preventDefault();
             
+            // Get form data from the form fields
+            const formData = {
+                fullName: $('#fullName').val(),
+                phoneNumber: $('#phoneNumber').val(),
+                department: $('#department').val(),
+                semester: $('#semester').val()
+            };
+            
+            // Split the full name into first and last name
             const nameParts = formData.fullName.trim().split(/\s+/);
             const firstName = nameParts[0] || '';
             const lastName = nameParts.slice(1).join(' ') || '';
 
+            // Prepare the data for the API
             const data = {
                 first_name: firstName,
                 last_name: lastName,
@@ -393,7 +387,38 @@ $(document).ready(function() {
                 semester: parseInt(formData.semester) || ''
             };
 
-            updateProfile(formData);
+            console.log('Submitting form data:', data);
+            $('#saveChanges').prop('disabled', true);
+            $('#profileUpdateMessage').html('<div class="info">Updating profile...</div>');
+
+            // Call updateProfile with the prepared data
+            updateProfile(data)
+                .then(responseData => {
+                    console.log('Profile update successful:', responseData);
+                    $('#profileUpdateMessage').html('<div class="success">Profile updated successfully!</div>');
+                    originalData = {
+                        fullName: responseData.data.first_name + ' ' + responseData.data.last_name,
+                        phoneNumber: responseData.data.phone_number || '',
+                        department: responseData.data.department || '',
+                        semester: responseData.data.semester || ''
+                    };
+                    checkFormChanges();
+                    retryCount = 0;
+                })
+                .catch(error => {
+                    console.error('Error updating profile:', error);
+                    const errorMessage = error.message === 'SERVER_ERROR'
+                        ? 'Server is temporarily unavailable. Your changes will be saved when connection is restored.'
+                        : 'Failed to update profile. Please try again.';
+                    
+                    $('#profileUpdateMessage').html(`<div class="error">${errorMessage}</div>`);
+                    $('#saveChanges').prop('disabled', false);
+
+                    if (error.message === 'SERVER_ERROR' && retryCount < MAX_RETRIES) {
+                        retryCount++;
+                        setTimeout(() => updateProfile(data), 2000 * retryCount);
+                    }
+                });
         });
     }
 

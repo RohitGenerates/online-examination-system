@@ -5,7 +5,8 @@ app_name = 'exams'
 
 urlpatterns = [
     # path('', views.exam_list, name='exam-list'),
-    path('create/', views.create_exam, name='create-exam'),
+    path('create/', views.create_exam, name='create_exam'),
+    path('create/<int:exam_id>/', views.add_questions, name='add_questions'),
     path('take/<int:exam_id>/', views.take_exam, name='take-exam'),
     path('results/', views.view_results, name='view-results'),
     # API endpoints

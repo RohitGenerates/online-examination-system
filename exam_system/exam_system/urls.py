@@ -3,7 +3,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from accounts.views import root_view
-from exams.views import api_student_exams, api_student_profile, api_student_results
+from exams.views import api_student_exams, api_student_results, create_exam
 
 urlpatterns = [
     path('', root_view, name='root'),
@@ -12,15 +12,11 @@ urlpatterns = [
     path('exams/', include('exams.urls')),
     
     path('api/student/exams', api_student_exams, name='api-student-exams'),
-    path('api/student/profile', api_student_profile, name='api-student-profile'),
     path('api/student/results', api_student_results, name='api-student-results'),
+    path('api/exams/create/', create_exam, name='create_exam'),
     
     # API endpoints
     path('api/', include('exams.urls')),
-    # path('api/exams/', include('exams.urls')),
-    # path('api/student-results/', include('exams.urls')),
-    # path('api/teacher/profile/', include('accounts.urls')),
-    # path('api/reports/', include('exams.urls')),
 ]
 
 # Serve static files in development
