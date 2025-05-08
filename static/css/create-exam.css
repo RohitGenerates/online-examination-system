@@ -463,7 +463,7 @@ h2, h3 {
 }
 
 /* ===== Toast Notifications ===== */
-.toast {
+/* .toast {
     position: fixed;
     bottom: 20px;
     right: 20px;
@@ -482,7 +482,7 @@ h2, h3 {
     transform: translateX(0);
     opacity: 1;
     box-sizing: border-box; /* Include padding in width calculation */
-}
+/* } */
 
 .toast::before {
     content: '';

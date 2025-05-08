@@ -14,6 +14,12 @@ from django.utils import timezone
 from django.db import transaction
 import os
 from django.urls import reverse
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.db.models import Avg, Count
+from datetime import datetime, timedelta
+from django.db.models import Q
 
 def root_view(request):
     return redirect('accounts:login')
@@ -302,80 +308,6 @@ def system_logs(request):
         raise PermissionDenied
     return render(request, 'accounts/system_logs.html')
 
-# Teacher Views
-@login_required
-def create_exam(request):
-    if not hasattr(request.user, 'teacher_profile'):
-        raise PermissionDenied
-    
-    if request.method == 'POST':
-        try:
-            exam_name = request.POST.get('exam_name')
-            subject = request.POST.get('subject')
-            department = request.POST.get('department')
-            semester = request.POST.get('semester')
-            duration = request.POST.get('duration')
-            total_marks = request.POST.get('total_marks')
-            passing_marks = request.POST.get('passing_marks')
-            exam_date = request.POST.get('exam_date')
-            
-            if not all([exam_name, subject, department, semester, duration, total_marks, passing_marks, exam_date]):
-                messages.error(request, 'All fields are required')
-                return redirect('accounts:create-exam')
-            
-            # Create the exam
-            exam = Exam.objects.create(
-                name=exam_name,
-                subject=subject,
-                department=department,
-                semester=semester,
-                duration=duration,
-                total_marks=total_marks,
-                passing_marks=passing_marks,
-                exam_date=exam_date,
-                created_by=request.user
-            )
-            
-            messages.success(request, 'Exam created successfully!')
-            return redirect('accounts:manage-exams')
-            
-        except Exception as e:
-            messages.error(request, f'Error creating exam: {str(e)}')
-            return redirect('accounts:create-exam')
-    
-    return render(request, 'accounts/create_exam.html')
-
-@login_required
-def manage_exams(request):
-    if not hasattr(request.user, 'teacher_profile'):
-        raise PermissionDenied
-    
-    # Get exams created by the current teacher
-    exams = Exam.objects.filter(created_by=request.user).order_by('-created_at')
-    return render(request, 'accounts/manage_exams.html', {'exams': exams, 'now': timezone.now()})
-
-@login_required
-def view_results(request):
-    if not hasattr(request.user, 'teacher_profile'):
-        raise PermissionDenied
-    
-    # Get exams created by the current teacher
-    exams = Exam.objects.filter(created_by=request.user)
-    results = []
-    
-    for exam in exams:
-        exam_results = StudentExamResult.objects.filter(exam=exam)
-        if exam_results.exists():
-            results.extend(exam_results)
-    
-    return render(request, 'accounts/view_results.html', {'results': results})
-
-@login_required
-def generate_reports(request):
-    if not hasattr(request.user, 'teacher_profile'):
-        raise PermissionDenied
-    return render(request, 'accounts/generate_reports.html')
-
 # Student Views
 @login_required
 def take_exam(request):
@@ -427,3 +359,266 @@ def placeholder_view(request):
 def get_csrf(request):
     csrf_token = get_token(request)
     return JsonResponse({'csrf_token': csrf_token})
+
+# Create Exam Endpoint
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_exam(request):
+    try:
+        data = request.data
+        # Validate required fields
+        required_fields = ['title', 'subject', 'duration', 'deadline', 'totalQuestions']
+        for field in required_fields:
+            if field not in data:
+                return Response({'success': False, 'message': f'Missing required field: {field}'}, status=400)
+
+        # Create exam
+        exam = Exam.objects.create(
+            title=data['title'],
+            subject_id=data['subject'],
+            duration=data['duration'],
+            deadline=data['deadline'],
+            total_questions=data['totalQuestions'],
+            created_by=request.user,
+            status='draft'
+        )
+
+        return Response({
+            'success': True,
+            'message': 'Exam created successfully',
+            'data': {
+                'exam_id': exam.id,
+                'title': exam.title
+            }
+        })
+    except Exception as e:
+        return Response({'success': False, 'message': str(e)}, status=500)
+
+# Manage Exams Endpoint
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_exams(request):
+    try:
+        # Get all exams created by the teacher
+        exams = Exam.objects.filter(created_by=request.user).order_by('-created_at')
+        serializer = ExamSerializer(exams, many=True)
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        })
+    except Exception as e:
+        return Response({'success': False, 'message': str(e)}, status=500)
+
+# View Student Results Endpoint
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def student_results(request):
+    try:
+        # Get filter parameters
+        exam_filter = request.GET.get('filter', '')
+        
+        # Base queryset
+        results = StudentResult.objects.filter(exam__created_by=request.user)
+        
+        # Apply filters
+        if exam_filter == 'recent':
+            # Get results from last 7 days
+            recent_date = datetime.now() - timedelta(days=7)
+            results = results.filter(created_at__gte=recent_date)
+        
+        serializer = StudentResultSerializer(results, many=True)
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        })
+    except Exception as e:
+        return Response({'success': False, 'message': str(e)}, status=500)
+
+# Generate Reports Endpoint
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def generate_report(request, report_type):
+    try:
+        if report_type == 'performance':
+            # Performance report - average scores by exam
+            performance_data = StudentResult.objects.filter(
+                exam__created_by=request.user
+            ).values('exam__title').annotate(
+                avg_score=Avg('score'),
+                total_students=Count('student')
+            )
+            
+            return Response({
+                'success': True,
+                'data': list(performance_data)
+            })
+            
+        elif report_type == 'attendance':
+            # Attendance report - number of students who took each exam
+            attendance_data = StudentResult.objects.filter(
+                exam__created_by=request.user
+            ).values('exam__title').annotate(
+                total_participants=Count('student')
+            )
+            
+            return Response({
+                'success': True,
+                'data': list(attendance_data)
+            })
+            
+        elif report_type == 'analysis':
+            # Question analysis - performance by question
+            analysis_data = StudentResult.objects.filter(
+                exam__created_by=request.user
+            ).values(
+                'exam__title',
+                'question__text'
+            ).annotate(
+                correct_answers=Count('is_correct', filter=Q(is_correct=True)),
+                total_attempts=Count('is_correct')
+            )
+            
+            return Response({
+                'success': True,
+                'data': list(analysis_data)
+            })
+            
+        else:
+            return Response({
+                'success': False,
+                'message': 'Invalid report type'
+            }, status=400)
+            
+    except Exception as e:
+        return Response({'success': False, 'message': str(e)}, status=500)
+
+@api_view(['GET', 'POST' , 'PUT'])
+@permission_classes([IsAuthenticated])
+def update_student_profile(request):
+    if not hasattr(request.user, 'student_profile'):
+        return Response({'success': False, 'message': 'Not a student account'}, status=403)
+    
+    if request.method == 'GET':
+        # Return current profile data
+        student = request.user.student_profile
+        return Response({
+            'success': True,
+            'data': {
+                'first_name': request.user.first_name,
+                'last_name': request.user.last_name,
+                'email': request.user.email,
+                'phone_number': request.user.phone_number,
+                'department': student.department,
+                'semester': student.semester,
+                'username': request.user.username
+            }
+        })
+    
+    elif request.method in ['POST' , 'PUT']:
+        try:
+            if request.method == 'PUT':
+                data = json.loads(request.body)
+            else:
+                data = request.data
+
+            user = request.user
+            student = user.student_profile
+            
+            # Update user fields
+            if 'first_name' in data:
+                user.first_name = data['first_name']
+            if 'last_name' in data:
+                user.last_name = data['last_name']
+            if 'phone_number' in data:
+                user.phone_number = data['phone_number']
+            
+            # Update student profile fields
+            if 'department' in data:
+                student.department = data['department']
+            if 'semester' in data:
+                student.semester = data['semester']
+            
+            # Save both models
+            user.save()
+            student.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Profile updated successfully',
+                'data': {
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'email': user.email,
+                    'phone_number': user.phone_number,
+                    'department': student.department,
+                    'semester': student.semester,
+                    'username': user.username
+                }
+            })
+        except Exception as e:
+            print(f"Error updating student profile: {str(e)}")  # Debug log
+            return Response({'success': False, 'message': str(e)}, status=500)
+
+@api_view(['GET', 'POST' , 'PUT'])
+@permission_classes([IsAuthenticated])
+def update_teacher_profile(request):
+    if not hasattr(request.user, 'teacher_profile'):
+        return Response({'success': False, 'message': 'Not a teacher account'}, status=403)
+    
+    if request.method == 'GET':
+        teacher = request.user.teacher_profile
+        return Response({
+            'success': True,
+            'data': {
+                'first_name': request.user.first_name,
+                'last_name': request.user.last_name,
+                'email': request.user.email,
+                'phone_number': request.user.phone_number,
+                'department': teacher.department,
+                'username': request.user.username
+            }
+        })
+    
+    elif request.method == 'POST':
+        try:
+            if request.method == 'PUT':
+                data = json.loads(request.body)
+            else:
+                data = request.data
+
+            user = request.user
+            teacher = user.teacher_profile
+            
+            # Update user fields
+            if 'first_name' in data:
+                user.first_name = data['first_name']
+            if 'last_name' in data:
+                user.last_name = data['last_name']
+            if 'phone_number' in data:
+                user.phone_number = data['phone_number']
+            
+            # Update teacher profile fields
+            if 'department' in data:
+                teacher.department = data['department']
+            
+            # Save both models
+            user.save()
+            teacher.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Profile updated successfully',
+                'data': {
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'email': user.email,
+                    'phone_number': user.phone_number,
+                    'department': teacher.department,
+                    'username': user.username
+                }
+            })
+        except Exception as e:
+            print(f"Error updating teacher profile: {str(e)}")  # Debug log
+            return Response({'success': False, 'message': str(e)}, status=500)

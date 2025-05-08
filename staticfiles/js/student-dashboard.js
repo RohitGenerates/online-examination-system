@@ -24,19 +24,42 @@ $(document).ready(function() {
     // When any dashboard option is clicked
     $(".option-card").click(function() {
         $(".option-card").removeClass("active");
-        $("#dynamicContentContainer").empty();
         $(this).addClass("active");
         
-        var optionId = $(this).attr("id");
-        
-        if (optionId === "takeExamOption") {
-            loadExamList();
-        } else if (optionId === "viewResultsOption") {
-            loadResultsList();
-        } else if (optionId === "updateProfileOption") {
-            loadProfileForm();
-        }
+        const optionId = $(this).attr("id");
+        loadContent(optionId);
     });
+
+    function loadContent(optionId) {
+        $("#dynamicContentContainer").empty().hide();
+        
+        switch(optionId) {
+            case "takeExamOption":
+                loadExamList();
+                break;
+            case "viewResultsOption":
+                loadResultsList();
+                break;
+            case "updateProfileOption":
+                loadProfileForm();
+                break;
+            default:
+                showWelcomeMessage();
+        }
+    }
+
+    function showWelcomeMessage() {
+        // Get the full name from localStorage or use username as fallback
+        const fullName = localStorage.getItem('fullName');
+        const displayName = fullName ? fullName : localStorage.getItem('username');
+        
+        $("#dynamicContentContainer").html(`
+            <div class="welcome-message">
+                <h2>Welcome, ${displayName}</h2>
+                <p>Select an option from the menu above to get started.</p>
+            </div>
+        `).slideDown(300);
+    }
 
     // Function to load exam list
     function loadExamList() {
@@ -221,7 +244,9 @@ $(document).ready(function() {
                     </div>
                     <div class="form-actions">
                         <button type="button" class="btn reset-btn" id="resetForm" style="display: none;">Reset Changes</button>
-                        <button type="submit" class="btn submit-btn" id="saveChanges" disabled>Save Changes</button>
+                        <button type="submit" class="btn submit-btn" id="saveChanges" disabled>
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
                     </div>
                 </form>
                 <div id="profileUpdateMessage" class="message-container"></div>
@@ -301,6 +326,7 @@ $(document).ready(function() {
             .then(data => {
                 $('#profileUpdateMessage').html('<div class="success">Profile updated successfully!</div>');
                 originalData = { ...formData };
+                localStorage.setItem('fullName', formData.fullName);
                 checkFormChanges();
                 retryCount = 0;
             })

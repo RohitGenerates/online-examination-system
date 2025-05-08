@@ -17,13 +17,18 @@ urlpatterns = [
     path('teacher/dashboard/', views.teacher_dashboard, name='teacher_dashboard'),
     path('admin/dashboard/', views.admin_dashboard, name='admin_dashboard'),
     
-    # Profile URL
+    # Profile URLs
     path('profile/', views.profile, name='profile'),
+    path('api/student/profile/update/', views.update_student_profile, name='update_student_profile'),
+    path('api/teacher/profile/update/', views.update_teacher_profile, name='update_teacher_profile'),
     
-    # Exam related URLs
-    path('create-exam/', views.create_exam, name='create-exam'),
-    path('manage-exams/', views.manage_exams, name='manage-exams'),
-    path('view-results/', views.view_results, name='view_results'),
+    # Student Views
     path('take-exam/', views.take_exam, name='take-exam'),
     path('student-results/<int:student_id>/', views.view_student_results, name='view_student_results'),
+    
+    # Teacher Dashboard API endpoints
+    path('api/exams/create/', views.create_exam, name='create_exam'),
+    path('api/exams/', views.list_exams, name='list_exams'),
+    path('api/student-results/', views.student_results, name='student_results'),
+    path('api/reports/<str:report_type>/', views.generate_report, name='generate_report'),
 ]

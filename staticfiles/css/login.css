@@ -363,7 +363,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 }
 
 /* Toast Notifications */
-.toast {
+/* .toast {
     position: fixed;
     top: 20px;
     right: 20px;
@@ -376,7 +376,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     display: none;
     animation: slideIn 0.3s ease-out;
     opacity: 1 !important;
-}
+} */
 
 .toast.success {
     background: linear-gradient(135deg, #4CAF50, #45a049);

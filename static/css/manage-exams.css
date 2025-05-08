@@ -237,7 +237,7 @@
     z-index: 1000;
 }
 
-.toast {
+/* .toast {
     padding: 1rem 1.5rem;
     border-radius: 8px;
     margin-bottom: 1rem;
@@ -246,7 +246,7 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     animation: slideIn 0.3s, fadeOut 0.5s 2.5s forwards;
     max-width: 350px;
-}
+} */
 
 .toast i {
     margin-right: 0.5rem;

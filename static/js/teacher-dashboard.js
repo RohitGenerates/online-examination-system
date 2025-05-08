@@ -1,3 +1,18 @@
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
 $(document).ready(function() {
     // Constants
     const MAX_RETRIES = 3;
@@ -8,31 +23,27 @@ $(document).ready(function() {
     let retryCount = 0;
     
     // Initialize dashboard
-    initDashboard();
+    // initDashboard();
 
-    function initDashboard() {
-        setupEventHandlers();
-    }
+    // function initDashboard() {
+    //     setupEventHandlers();
+    // }  // AI DRUNK
 
-    function setupEventHandlers() {
         // Logout handler
-        $("#logoutBtn").click(handleLogout);
-        
-        // Option card handlers
-        $(".option-card").click(function() {
-            $(".option-card").removeClass("active");
-            $(this).addClass("active");
-            
-            const optionId = $(this).attr("id");
-            loadContent(optionId);
-        });
-    }
-
-    function handleLogout() {
+    $("#logoutBtn").click(function() {
         localStorage.removeItem('token');
         localStorage.removeItem('userType');
         window.location.href = '/login.html';
-    }
+    });
+    
+    // Option card handlers
+    $(".option-card").click(function() {
+        $(".option-card").removeClass("active");
+        $(this).addClass("active");
+        
+        const optionId = $(this).attr("id");
+        loadContent(optionId);
+    });
 
     function loadContent(optionId) {
         $("#dynamicContentContainer").empty().hide();
@@ -59,9 +70,13 @@ $(document).ready(function() {
     }
 
     function showWelcomeMessage() {
+        // Get the full name from localStorage or use username as fallback
+        const fullName = localStorage.getItem('fullName');
+        const displayName = fullName ? fullName : localStorage.getItem('username');
+        
         $("#dynamicContentContainer").html(`
             <div class="welcome-message">
-                <h2>Welcome, ${localStorage.getItem('username')}</h2>
+                <h2>Welcome, ${displayName}</h2>
                 <p>Select an option from the menu above to get started.</p>
             </div>
         `).slideDown(300);
@@ -191,21 +206,23 @@ $(document).ready(function() {
             url: '/api/exams/create/',
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token')
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRFToken': getCookie('csrftoken')
             },
-            data: examData,
+            data: JSON.stringify(examData),
             success: function(response) {
                 if (response.success) {
                     showToast('Exam created successfully!', 'success');
                     // After successful creation, redirect to question editor
                     window.location.href = `/exams/manage/${response.data.exam_id}/`;
                 } else {
-                    showToast('Failed to create exam: ' + response.message, 'error');
+                    showToast(response.message || 'Failed to create exam', 'error');
                     $(".primary-btn").html('<i class="fas fa-plus-circle"></i> Create Exam & Add Questions').prop('disabled', false);
                 }
             },
             error: function(xhr, status, error) {
-                showToast('Error creating exam: ' + error, 'error');
+                showToast(error || 'Error creating exam', 'error');
                 $(".primary-btn").html('<i class="fas fa-plus-circle"></i> Create Exam & Add Questions').prop('disabled', false);
             }
         });
@@ -254,18 +271,19 @@ $(document).ready(function() {
             url: '/api/exams/',
             method: 'GET',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token')
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRFToken': getCookie('csrftoken')
             },
             success: function(response) {
                 if (response.success) {
                     displayExams(response.data);
                 } else {
-                    showToast('Failed to fetch exams: ' + response.message, 'error');
+                    showToast(response.message || 'Failed to fetch exams', 'error');
                     $(".exam-list").html('<div class="no-exams">Failed to load exams.</div>');
                 }
             },
             error: function(xhr, status, error) {
-                showToast('Error fetching exams: ' + error, 'error');
+                showToast(error || 'Error fetching exams', 'error');
                 $(".exam-list").html('<div class="no-exams">Error loading exams.</div>');
             }
         });
@@ -361,18 +379,19 @@ $(document).ready(function() {
             url: '/api/student-results/',
             method: 'GET',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token')
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRFToken': getCookie('csrftoken')
             },
             success: function(response) {
                 if (response.success) {
                     displayResults(response.data);
                 } else {
-                    showToast('Failed to fetch results: ' + response.message, 'error');
+                    showToast(response.message || 'Failed to fetch results', 'error');
                     $(".results-container").html('<div class="no-results">Failed to load results.</div>');
                 }
             },
             error: function(xhr, status, error) {
-                showToast('Error fetching results: ' + error, 'error');
+                showToast(error || 'Error fetching results', 'error');
                 $(".results-container").html('<div class="no-results">Error loading results.</div>');
             }
         });
@@ -438,7 +457,8 @@ $(document).ready(function() {
             url: `/api/reports/${reportType}/`,
             method: 'GET',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token')
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRFToken': getCookie('csrftoken')
             },
             success: function(response) {
                 if (response.success) {
@@ -455,11 +475,11 @@ $(document).ready(function() {
                             break;
                     }
                 } else {
-                    showToast('Failed to generate report: ' + response.message, 'error');
+                    showToast(response.message || 'Failed to generate report', 'error');
                 }
             },
             error: function(xhr, status, error) {
-                showToast('Error generating report: ' + error, 'error');
+                showToast(error || 'Error generating report', 'error');
             },
             complete: function() {
                 $(".report-card").prop('disabled', false);
@@ -471,8 +491,8 @@ $(document).ready(function() {
         $("#dynamicContentContainer").html(`
             <div class="profile-container">
                 <h2>Update Your Profile</h2>
-                <form id="teacherProfileForm" class="form-grid">
-                    <div class="form-group form-full-width">
+                <form id="teacherProfileForm" class="profile-form">
+                    <div class="form-group">
                         <div class="input-with-icon">
                             <i class="fas fa-user"></i>
                             <input type="text" id="teacherName" name="name" placeholder="Full Name" required>
@@ -487,21 +507,23 @@ $(document).ready(function() {
                     <div class="form-group">
                         <div class="input-with-icon">
                             <i class="fas fa-phone"></i>
-                            <input type="tel" id="teacherPhone" name="phone" placeholder="Phone Number" pattern="[0-9]{10}" required>
+                            <input type="tel" id="teacherPhone" name="phone" placeholder="Phone Number" pattern="[0-9]{10}" title="Please enter a valid 10-digit phone number" required>
                         </div>
                     </div>
                     <div class="form-group">
                         <div class="input-with-icon">
                             <i class="fas fa-building"></i>
-                            <input type="text" id="teacherDepartment" name="department" placeholder="Department" required>
+                            <input type="text" id="teacherDepartment" name="department" placeholder="Department" readonly>
                         </div>
                     </div>
-                    <div class="form-actions form-full-width">
-                        <button type="submit" class="btn primary-btn save-profile-btn">
+                    <div class="form-actions">
+                    <button type="button" class="btn reset-btn" id="resetForm" style="display: none;">Reset Changes</button>
+                        <button type="submit" class="btn submit-btn" id="saveChanges" disabled>
                             <i class="fas fa-save"></i> Save Changes
                         </button>
                     </div>
                 </form>
+                <div id="profileUpdateMessage" class="message-container"></div>
             </div>
         `).slideDown(300);
 
@@ -677,29 +699,259 @@ $(document).ready(function() {
         });
     }
 
+    function fetchPerformanceReport() {
+        const csrftoken = getCookie('csrftoken');
+
+        $.ajax({
+            url: '/api/performance-report/',
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRFToken': csrftoken,
+            },
+            success: function(response) {
+                if (response.success) {
+                    displayPerformanceReport(response.data);
+                } else {
+                    showError('Failed to load performance report');
+                }
+            },
+            error: function() {
+                showError('Failed to load performance report');
+            }
+        });
+    }
+    
     function displayPerformanceReport(data) {
-        // Implementation would go here
+        // Clear previous content
+        $('#mainContent').empty();
+        
+        // Create report container
+        const reportDiv = $('<div>').addClass('performance-report');
+        
+        // Add title
+        reportDiv.append($('<h2>').text('=== Exam Results Report ==='));
+        
+        // Add metrics
+        const metrics = [
+            `Total students: ${data.totalStudents}`,
+            `Pass Rate: ${data.passRate}%`,
+            `Average Mark: ${data.averageMark}`,
+            `Highest Mark: ${data.highestMark}`,
+            `Lowest Mark: ${data.lowestMark}`
+        ];
+        
+        metrics.forEach(metric => {
+            reportDiv.append($('<p>').text(metric));
+        });
+        
+        // Add grade distribution
+        reportDiv.append($('<h3>').text('Grade Distribution:'));
+        const grades = [
+            { grade: 'A', range: '85%+', count: data.gradeDistribution.A },
+            { grade: 'B', range: '70-84%', count: data.gradeDistribution.B },
+            { grade: 'C', range: '55-69%', count: data.gradeDistribution.C },
+            { grade: 'D', range: '35-54%', count: data.gradeDistribution.D },
+            { grade: 'F', range: '0-34%', count: data.gradeDistribution.F }
+        ];
+        
+        grades.forEach(grade => {
+            reportDiv.append($('<p>').text(
+                `${grade.grade} Grade (${grade.range}): ${grade.count}`
+            ));
+        });
+        
+        // Add some basic styling
+        $('<link>', {
+            rel: 'stylesheet',
+            type: 'text/css',
+            href: 'teacher-dashboard.css'
+        }).appendTo('head');
+
+        $('#mainContent').append(reportDiv);
+    }
+
+    function fetchAttendanceReport(examId) {
+        const csrftoken = getCookie('csrftoken');
+
+        $.ajax({
+            url: `/api/attendance-report/${examId}/`,
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRFToken': csrftoken,
+            },
+            success: function(response) {
+                if (response.success) {
+                    displayAttendanceReport(response.data);
+                } else {
+                    showError('Failed to load attendance report');
+                }
+            },
+            error: function() {
+                showError('Failed to load attendance report');
+            }
+        });
     }
 
     function displayAttendanceReport(data) {
-        // Implementation would go here
+        // Clear previous content
+        $('#mainContent').empty();
+        
+        // Create report container
+        const reportDiv = $('<div>').addClass('attendance-report');
+        
+        // Add title
+        reportDiv.append($('<h2>').text('=== Exam Attendance Report ==='));
+        
+        // Add metrics
+        const metrics = [
+            `Total Registered Students: ${data.totalRegistered}`,
+            `Students Present: ${data.present}`,
+            `Students Absent: ${data.absent}`,
+            `Attendance Rate: ${data.attendanceRate}%`
+        ];
+        
+        metrics.forEach(metric => {
+            reportDiv.append($('<p>').text(metric));
+        });
+        
+        // Add late submissions if any
+        if (data.lateSubmissions > 0) {
+            reportDiv.append($('<p>').text(`Late Submissions: ${data.lateSubmissions}`));
+        }
+        
+        // Add some basic styling
+        $('<link>', {
+            rel: 'stylesheet',
+            type: 'text/css',
+            href: 'teacher-dashboard.css'
+        }).appendTo('head');
+        
+        // Add to main content
+        $('#mainContent').append(reportDiv);
     }
 
-    function displayQuestionAnalysis(data) {
-        // Implementation would go here
+    function fetchQuestionAnalysis(examId) {
+        const csrftoken = getCookie('csrftoken');
+
+        $.ajax({
+            url: `/api/question-analysis/${examId}/`,
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRFToken': csrftoken,
+            },
+            success: function(response) {
+                if (response.success) {
+                    displayQuestionAnalysis(response.data);
+                } else {
+                    showError('Failed to load question analysis');
+                }
+            },
+            error: function() {
+                showError('Failed to load question analysis');
+            }
+        });
     }
+    
+    function displayQuestionAnalysis(data) {
+        // Clear previous content
+        $('#mainContent').empty();
+        
+        // Create report container
+        const reportDiv = $('<div>').addClass('question-analysis');
+        
+        // Add title
+        reportDiv.append($('<h2>').text('=== Question Analysis Report ==='));
+        reportDiv.append($('<p>').text(`Total Questions: ${data.totalQuestions}`));
+        
+        if (data.questionAnalysis.length === 0) {
+            reportDiv.append($('<p>').text('No submissions yet'));
+            $('#mainContent').append(reportDiv);
+            return;
+        }
+        
+        // Add analysis for each question
+        data.questionAnalysis.forEach((question, index) => {
+            const questionDiv = $('<div>').addClass('question-item');
+            
+            // Question header
+            questionDiv.append($('<h3>').text(`Question ${index + 1}`));
+            questionDiv.append($('<p>').text(question.questionText));
+            
+            // Statistics
+            const statsDiv = $('<div>').addClass('question-stats');
+            statsDiv.append($('<p>').text(`Accuracy: ${question.accuracy}%`));
+            statsDiv.append($('<p>').text(`Correct Answers: ${question.correctAnswers}/${question.totalAnswers}`));
+            
+            // Common wrong answers
+            if (question.commonWrongAnswers.length > 0) {
+                const wrongAnswersDiv = $('<div>').addClass('wrong-answers');
+                wrongAnswersDiv.append($('<h4>').text('Common Wrong Answers:'));
+                question.commonWrongAnswers.forEach(wrong => {
+                    wrongAnswersDiv.append($('<p>').text(
+                        `Answer ${wrong.answer}: ${wrong.count} students`
+                    ));
+                });
+                statsDiv.append(wrongAnswersDiv);
+            }
+            
+            // Correct answer
+            statsDiv.append($('<p>').text(`Correct Answer: ${question.correctAnswer}`));
+            
+            questionDiv.append(statsDiv);
+            reportDiv.append(questionDiv);
+        });
+        
+        // Add styling
+        $('<link>', {
+            rel: 'stylesheet',
+            type: 'text/css',
+            href: 'teacher-dashboard.css'
+        }).appendTo('head');
+        
+        // Add to main content
+        $('#mainContent').append(reportDiv);
+    }
+    
 
     // Add this function for toast notifications
     function showToast(message, type = 'success') {
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        toast.style.display = 'block';
+        // Remove any existing toasts
+        $('.toast-container').remove();
+        
+        // Create toast container if it doesn't exist
+        if ($('.toast-container').length === 0) {
+            $('body').append('<div class="toast-container"></div>');
+        }
+        
+        // Create toast element
+        const toast = $(`
+            <div class="toast ${type}">
+                <div class="toast-content">
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+                    <span>${message}</span>
+                </div>
+                <div class="toast-progress"></div>
+            </div>
+        `);
+        
+        // Add toast to container
+        $('.toast-container').append(toast);
+        
+        // Show toast with animation
         setTimeout(() => {
-            toast.style.opacity = 0;
-            setTimeout(() => toast.remove(), 500);
-        }, 2500);
+            toast.addClass('show');
+        }, 100);
+        
+        // Remove toast after 3 seconds
+        setTimeout(() => {
+            toast.removeClass('show');
+            setTimeout(() => {
+                toast.remove();
+            }, 300);
+        }, 3000);
     }
 
     document.addEventListener('DOMContentLoaded', function() {

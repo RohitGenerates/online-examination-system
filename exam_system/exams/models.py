@@ -1,5 +1,6 @@
 from django.db import models
 from accounts.models import User, Student, Teacher
+from datetime import datetime, timedelta
 
 class Question(models.Model):
     text = models.TextField()
@@ -13,14 +14,32 @@ class Question(models.Model):
 class Exam(models.Model):
     title = models.CharField(max_length=200)
     subject = models.CharField(max_length=100)
-    department = models.CharField(max_length=100)  # Which department this exam is for
-    semester = models.CharField(max_length=2)      # Which semester students can take this
-    duration = models.PositiveIntegerField(help_text="Duration in minutes")
-    passing_score = models.PositiveIntegerField()
+    department = models.CharField(max_length=50)
+    semester = models.IntegerField()
+    duration = models.IntegerField(help_text="Duration in minutes")
+    passing_score = models.IntegerField()
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
+    late_submission_end = models.DateTimeField(
+        help_text="5 days after end_time for late submissions",
+        default=datetime.now
+    )
     created_by = models.ForeignKey(Teacher, on_delete=models.CASCADE)
-    questions = models.JSONField()  # Store question IDs as JSON array
+    questions = models.JSONField()
+    created_at = models.DateTimeField(default=datetime.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.late_submission_end:
+            # Set late submission end to 5 days after end_time
+            self.late_submission_end = self.end_time + timedelta(days=5)
+        super().save(*args, **kwargs)
+
+    def is_late_submission(self, submission_time):
+        return self.end_time < submission_time <= self.late_submission_end
+
+    def is_available(self, current_time):
+        return self.start_time <= current_time <= self.late_submission_end
 
     def __str__(self):
         return self.title
