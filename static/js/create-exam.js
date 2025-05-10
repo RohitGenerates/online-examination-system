@@ -1,31 +1,35 @@
+// Get exam ID from URL path instead of query parameters
+const examId = window.location.pathname.split('/').filter(Boolean).pop();
+
 // Exam data structure with enhanced storage capabilities
 let examData = {
-    title: sessionStorage.getItem('examTitle') || '',
-    subject: sessionStorage.getItem('examSubject') || '',
-    duration: parseInt(sessionStorage.getItem('examDuration')) || 60,
-    totalQuestions: parseInt(sessionStorage.getItem('totalQuestions')) || 10,
+    id: examId,
+    title: '',
+    subject: '',
+    semester: '',
+    duration: 60,
+    totalQuestions: 10,
     createdAt: new Date().toISOString(),
     questions: []
 };
 
 // Current question position
 let currentQuestionIndex = 0;
-let draftKey = `examDraft_${examData.title}`;
+let draftKey = `examDraft_${examId}`;
 
 // Initialize the editor
 document.addEventListener('DOMContentLoaded', function() {
-    // Load any saved progress first
-    loadSavedProgress();
+    console.log('Loading exam data for ID:', examId); // Debug log
     
-    // Display exam info
-    displayExamInfo();
+    // Load exam data from server first
+    loadExamData();
     
     // Setup event listeners
     document.getElementById('prevQuestion').addEventListener('click', prevQuestion);
     document.getElementById('nextQuestion').addEventListener('click', nextQuestion);
     document.getElementById('createExamBtn').addEventListener('click', createExam);
-    document.getElementById('backToDashboard').addEventListener('click', goToDashboard);
     document.getElementById('backToDashboardTop').addEventListener('click', goToDashboard);
+    document.getElementById('backToDashboard').addEventListener('click', goToDashboard);
 
     // Set correct answer
     document.querySelectorAll('.set-correct-btn').forEach(btn => {
@@ -115,13 +119,64 @@ document.addEventListener('DOMContentLoaded', function() {
     updateProgress();
 });
 
+function loadExamData() {
+    console.log('Fetching exam data from:', `/api/exams/${examId}/`); // Debug log
+    
+    // Fetch exam data from server
+    fetch(`/api/exams/${examId}/`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => {
+        console.log('Response status:', response.status); // Debug log
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Received exam data:', data); // Debug log
+        if (data.success) {
+            examData = {
+                ...examData,
+                title: data.data.title,
+                subject: data.data.subject,
+                semester: data.data.semester,
+                duration: data.data.duration,
+                totalQuestions: data.data.totalQuestions
+            };
+            
+            // Load any saved progress
+            loadSavedProgress();
+            
+            // Display exam info
+            displayExamInfo();
+            
+            // Initialize first question
+            initializeQuestion();
+            
+            // Update progress bar
+            updateProgress();
+        } else {
+            showToast('Failed to load exam data: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading exam data:', error);
+        showToast('Error loading exam data. Please try again.', 'error');
+    });
+}
+
 function goToDashboard() {
     if (examData.questions.length > 0) {
         if (confirm('You have unsaved changes. Are you sure you want to leave?')) {
-            window.location.href = 'teacher-dashboard.html';
+            window.location.href = '/accounts/teacher-dashboard/';
         }
     } else {
-        window.location.href = 'teacher-dashboard.html';
+        window.location.href = '/accounts/teacher-dashboard/';
     }
 }
 
@@ -313,18 +368,25 @@ async function createExam() {
     saveQuestion(); // Save the last question
     
     try {
-        // Send exam data to server in chunks
-        const response = await fetch('/api/exams', {
+        // Send exam data to server
+        const response = await fetch(`/api/exams/${examId}/questions/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('teacherToken')}`
+                'X-CSRFToken': getCookie('csrftoken')
             },
-            body: JSON.stringify(examData)
+            body: JSON.stringify({
+                questions: examData.questions
+            })
         });
 
-        if (!response.ok) throw new Error('Failed to create exam');
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to create exam');
+        }
         
+        const result = await response.json();
+        if (result.success) {
         // Show success modal
         document.getElementById('successModal').style.display = 'flex';
         document.querySelector('.exam-creation-container').style.display = 'none';
@@ -333,19 +395,22 @@ async function createExam() {
         clearExamData();
         
         showToast('Exam created successfully!', 'success');
+        } else {
+            throw new Error(result.message || 'Failed to create exam');
+        }
     } catch (error) {
         console.error('Error creating exam:', error);
-        showToast('Failed to create exam. Please try again.', 'error');
+        showToast('Failed to create exam: ' + error.message, 'error');
     }
 }
 
 function clearExamData() {
-    // Clear both session and local storage
+    // Clear only this exam's data
     localStorage.removeItem(draftKey);
-    sessionStorage.removeItem('examTitle');
-    sessionStorage.removeItem('examSubject');
-    sessionStorage.removeItem('examDuration');
-    sessionStorage.removeItem('totalQuestions');
+    examData.questions = [];
+    currentQuestionIndex = 0;
+    updateProgress();
+    initializeQuestion();
 }
 
 // Enhanced Toast notification function

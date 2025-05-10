@@ -88,7 +88,7 @@ $(document).ready(function() {
         
         // Fetch subjects from API
         $.ajax({
-            url: '/api/subjects/',
+            url: '/api/exams/subjects/',
             method: 'GET',
             headers: {
                 'Authorization': 'Bearer ' + localStorage.getItem('token')

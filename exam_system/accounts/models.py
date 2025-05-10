@@ -81,15 +81,26 @@ class User(AbstractUser):
 
 class Student(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile')
-    department = models.CharField(max_length=100)
-    semester = models.CharField(max_length=2)
+    department = models.ForeignKey('exams.Department', on_delete=models.CASCADE)
+    semester = models.IntegerField(choices=[(i, f'Semester {i}') for i in range(1, 9)])
     
     def __str__(self):
         return f"{self.user.username} - {self.department} - Semester {self.semester}"
 
+    def get_available_exams(self):
+        """Get exams available for this student"""
+        from exams.models import Exam
+        return Exam.objects.filter(
+            department=self.department,
+            semester=self.semester,
+            status='active'
+        ).exclude(
+            studentexamresult__student=self
+        )
+
 class Teacher(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='teacher_profile')
-    department = models.CharField(max_length=100)
+    department = models.ForeignKey('exams.Department', on_delete=models.CASCADE)
     
     def __str__(self):
         return f"{self.user.username} - {self.department}"
@@ -99,14 +110,39 @@ def create_user_profile(sender, instance, created, **kwargs):
     """Create corresponding profile when user is created"""
     if created:
         # Get department from ID
-        department = instance.get_department_from_id()
-        if instance.role == 'student':
-            # Create student profile - extract semester from ID or set default
-            semester = '1'  # Default semester
-            Student.objects.create(user=instance, department=department, semester=semester)
-        elif instance.role == 'teacher':
-            # Create teacher profile
-            Teacher.objects.create(user=instance, department=department)
+        dept_code = instance.username[5:7]  # Extract department code (cg, cs, is, ml, ds)
+        from exams.models import Department
+        
+        # Map department codes to names
+        dept_mapping = {
+            'cg': 'Computer Science Design',
+            'cs': 'Computer Science Engineering',
+            'is': 'Information Science Engineering',
+            'ml': 'Artificial Intelligence & Machine Learning',
+            'ds': 'Artificial Intelligence & Data Science'
+        }
+        
+        dept_name = dept_mapping.get(dept_code)
+        if dept_name:
+            department, _ = Department.objects.get_or_create(
+                name=dept_name,
+                code=dept_code
+            )
+            
+            if instance.role == 'student':
+                # Create student profile - extract semester from ID
+                semester = int(instance.username[0])  # First digit is semester
+                Student.objects.create(
+                    user=instance,
+                    department=department,
+                    semester=semester
+                )
+            elif instance.role == 'teacher':
+                # Create teacher profile
+                Teacher.objects.create(
+                    user=instance,
+                    department=department
+                )
 
 # Connect the signal
 post_save.connect(create_user_profile, sender=User)

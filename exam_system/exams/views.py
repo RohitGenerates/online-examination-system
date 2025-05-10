@@ -6,7 +6,7 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
-from .models import Exam, Question, StudentExamResult
+from .models import Exam, Question, StudentExamResult, ExamAttempt
 from accounts.models import User, Student, Teacher
 from datetime import datetime, timedelta
 import json
@@ -39,14 +39,22 @@ def exam_list(request):
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
-def create_exam(request):
+def create_exam(request, exam_id=None):
+    """Handle both exam creation and question editor view"""
     if not hasattr(request.user, 'teacher_profile'):
         return Response({'success': False, 'message': 'Not a teacher'}, status=403)
     
     if request.method == 'GET':
-        return render(request, 'exams/create_exam.html')
+        # This is the question editor view
+        if exam_id:
+            try:
+                exam = Exam.objects.get(id=exam_id, created_by=request.user.teacher_profile)
+                return render(request, 'exams/create_exam.html', {'exam': exam})
+            except Exam.DoesNotExist:
+                return Response({'success': False, 'message': 'Exam not found'}, status=404)
     
     elif request.method == 'POST':
+        # This is the API endpoint for creating a new exam
         try:
             data = request.data
             print("Received data:", data)  # Debug log
@@ -66,10 +74,10 @@ def create_exam(request):
             # Create exam
             exam = Exam.objects.create(
                 title=data['title'],
-                subject=data['subject'],
-                department=request.user.teacher_profile.department,  # Get department from teacher profile
-                semester=1,  # Default to semester 1, can be updated later
+                subject_id=data['subject'],
+                semester=data['semester'],
                 duration=int(data['duration']),
+                total_questions=int(data['totalQuestions']),
                 passing_score=50,  # Default passing score
                 start_time=deadline,
                 end_time=deadline,
@@ -84,7 +92,11 @@ def create_exam(request):
                 'message': 'Exam created successfully',
                 'data': {
                     'exam_id': exam.id,
-                    'title': exam.title
+                    'title': exam.title,
+                    'subject': exam.subject.name,
+                    'semester': exam.semester,
+                    'duration': exam.duration,
+                    'totalQuestions': exam.total_questions
                 }
             })
         except Exception as e:
@@ -92,6 +104,57 @@ def create_exam(request):
             import traceback
             print(traceback.format_exc())  # Print full traceback
             return Response({'success': False, 'message': str(e)}, status=500)
+
+def create_exam_view(request):
+    """View for rendering the initial exam creation form"""
+    if not hasattr(request.user, 'teacher_profile'):
+        return redirect('login')
+    return render(request, 'exams/create_exam.html')
+
+def add_questions_view(request, exam_id):
+    """View for rendering the questions form"""
+    if not hasattr(request.user, 'teacher_profile'):
+        return redirect('login')
+    
+    try:
+        exam = Exam.objects.get(id=exam_id, created_by=request.user.teacher_profile)
+        return render(request, 'exams/add_questions.html', {'exam': exam})
+    except Exam.DoesNotExist:
+        messages.error(request, 'Exam not found')
+        return redirect('teacher_dashboard')
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_questions(request, exam_id):
+    """API endpoint for adding questions to an exam"""
+    if not hasattr(request.user, 'teacher_profile'):
+        return Response({'success': False, 'message': 'Not a teacher'}, status=403)
+    
+    try:
+        exam = Exam.objects.get(id=exam_id, created_by=request.user.teacher_profile)
+        data = request.data
+        
+        # Validate questions data
+        if 'questions' not in data:
+            return Response({'success': False, 'message': 'No questions provided'}, status=400)
+        
+        # Update exam with questions
+        exam.questions = data['questions']
+        exam.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Questions added successfully',
+            'data': {
+                'exam_id': exam.id,
+                'total_questions': len(exam.questions)
+            }
+        })
+    except Exam.DoesNotExist:
+        return Response({'success': False, 'message': 'Exam not found'}, status=404)
+    except Exception as e:
+        print(f"Error adding questions: {str(e)}")  # Debug log
+        return Response({'success': False, 'message': str(e)}, status=500)
 
 @login_required
 def take_exam(request, exam_id):
@@ -474,23 +537,71 @@ def generate_report(request, report_type):
             'message': str(e)
         }, status=500)
 
-@api_view(['GET', 'POST'])
+@api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def add_questions(request, exam_id):
-    if not hasattr(request.user, 'teacher_profile'):
-        return Response({'success': False, 'message': 'Not a teacher'}, status=403)
+def get_available_exams(request):
+    if not hasattr(request.user, 'student_profile'):
+        return Response({'success': False, 'message': 'Not a student'}, status=403)
     
-    exam = get_object_or_404(Exam, id=exam_id)
-    
-    if request.method == 'GET':
-        return render(request, 'exams/add_questions.html', {'exam': exam})
-    
-    elif request.method == 'POST':
-        try:
-            data = request.data
-            # Add question logic here
-            return Response({'success': True, 'message': 'Questions added successfully'})
-        except Exception as e:
-            return Response({'success': False, 'message': str(e)}, status=500)
+    try:
+        student = request.user.student_profile
+        exams = Exam.objects.filter(
+            semester=student.semester,
+            subject__department=student.department,
+            status='active'
+        ).exclude(
+            id__in=ExamAttempt.objects.filter(
+                student=student
+            ).values_list('exam_id', flat=True)
+        )
+        exams_data = [{
+            'id': exam.id,
+            'title': exam.title,
+            'subject': exam.subject,
+            'duration': exam.duration,
+            'total_questions': len(exam.questions),
+            'deadline': exam.end_time.isoformat(),
+            'remaining_time': (exam.end_time - timezone.now()).total_seconds() // 60  # in minutes
+        } for exam in exams]
+        
+        return Response({
+            'success': True,
+            'data': exams_data
+        })
+        
+    except Exception as e:
+        print(f"Error fetching available exams: {str(e)}")  # Debug log
+        return Response({
+            'success': False,
+            'message': str(e)
+        }, status=500)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_exam(request, exam_id):
+    """Get exam details"""
+    try:
+        exam = Exam.objects.get(id=exam_id)
+        return Response({
+            'success': True,
+            'data': {
+                'id': exam.id,
+                'title': exam.title,
+                'subject': exam.subject,
+                'duration': exam.duration,
+                'totalQuestions': exam.total_questions,
+                'questions': exam.questions
+            }
+        })
+    except Exam.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': 'Exam not found'
+        }, status=404)
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': str(e)
+        }, status=500)
 
     

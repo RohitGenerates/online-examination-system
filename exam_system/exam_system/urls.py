@@ -3,20 +3,18 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from accounts.views import root_view
-from exams.views import api_student_exams, api_student_results, create_exam
+from exams.views import api_student_exams, api_student_results
 
 urlpatterns = [
     path('', root_view, name='root'),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
-    path('exams/', include('exams.urls')),
     
-    path('api/student/exams', api_student_exams, name='api-student-exams'),
-    path('api/student/results', api_student_results, name='api-student-results'),
-    path('api/exams/create/', create_exam, name='create_exam'),
+    # View URLs (non-API)
+    path('exams/', include('exams.urls', namespace='exams_views')),
     
-    # API endpoints
-    path('api/', include('exams.urls')),
+    # API URLs
+    path('api/exams/', include('exams.urls', namespace='exams_api')),
 ]
 
 # Serve static files in development

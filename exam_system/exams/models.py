@@ -1,6 +1,7 @@
 from django.db import models
 from accounts.models import User, Student, Teacher
 from datetime import datetime, timedelta
+from django.utils import timezone
 
 class Question(models.Model):
     text = models.TextField()
@@ -11,38 +12,56 @@ class Question(models.Model):
     def __str__(self):
         return f"{self.text[:50]}..."
 
+class Department(models.Model):
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=10, unique=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+class Subject(models.Model):
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=10, unique=True)
+    department = models.ForeignKey(Department, on_delete=models.CASCADE)
+    semester = models.IntegerField(choices=[(i, f'Semester {i}') for i in range(1, 9)])
+
+    def __str__(self):
+        return f"{self.name} - {self.department} - Semester {self.semester}"
+
 class Exam(models.Model):
     title = models.CharField(max_length=200)
-    subject = models.CharField(max_length=100)
-    department = models.CharField(max_length=50)
-    semester = models.IntegerField()
+    subject = models.ForeignKey('Subject', on_delete=models.CASCADE)
+    department = models.ForeignKey('Department', on_delete=models.CASCADE)
+    semester = models.IntegerField(choices=[(i, f'Semester {i}') for i in range(1, 9)])
     duration = models.IntegerField(help_text="Duration in minutes")
     passing_score = models.IntegerField()
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
-    late_submission_end = models.DateTimeField(
-        help_text="5 days after end_time for late submissions",
-        default=datetime.now
+    late_submission_end = models.DateTimeField()
+    created_by = models.ForeignKey('accounts.Teacher', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    questions = models.JSONField(default=list)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('draft', 'Draft'),
+            ('active', 'Active'),
+            ('completed', 'Completed'),
+            ('cancelled', 'Cancelled')
+        ],
+        default='draft'
     )
-    created_by = models.ForeignKey(Teacher, on_delete=models.CASCADE)
-    questions = models.JSONField()
-    created_at = models.DateTimeField(default=datetime.now)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def save(self, *args, **kwargs):
-        if not self.late_submission_end:
-            # Set late submission end to 5 days after end_time
-            self.late_submission_end = self.end_time + timedelta(days=5)
-        super().save(*args, **kwargs)
-
-    def is_late_submission(self, submission_time):
-        return self.end_time < submission_time <= self.late_submission_end
-
-    def is_available(self, current_time):
-        return self.start_time <= current_time <= self.late_submission_end
 
     def __str__(self):
-        return self.title
+        return f"{self.title} - {self.subject} - Semester {self.semester}"
+
+    def is_available(self, current_time):
+        """Check if exam is currently available"""
+        return self.start_time <= current_time <= self.late_submission_end
+
+    def is_late_submission(self, submission_time):
+        """Check if submission is late"""
+        return self.end_time < submission_time <= self.late_submission_end
 
 class StudentExamResult(models.Model):
     STATUS_CHOICES = (
@@ -61,3 +80,52 @@ class StudentExamResult(models.Model):
 
     def __str__(self):
         return f"{self.student.user.username} - {self.exam.title} - {self.obtained_marks}"
+
+class ExamAttempt(models.Model):
+    STATUS_CHOICES = (
+        ('started', 'Started'),
+        ('in_progress', 'In Progress'),
+        ('submitted', 'Submitted'),
+        ('abandoned', 'Abandoned')
+    )
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE)
+    start_time = models.DateTimeField(auto_now_add=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='started')
+    answers = models.JSONField(default=dict)  # Store student's answers
+    is_late_submission = models.BooleanField(default=False)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    browser_info = models.CharField(max_length=255, null=True, blank=True)
+
+    class Meta:
+        unique_together = ('student', 'exam')  # One attempt per exam per student
+        ordering = ['-start_time']
+
+    def __str__(self):
+        return f"{self.student.user.username} - {self.exam.title} - {self.status}"
+
+    def calculate_duration(self):
+        """Calculate actual duration of attempt"""
+        if self.end_time:
+            return (self.end_time - self.start_time).total_seconds() / 60
+        return None
+
+    def is_time_exceeded(self):
+        """Check if attempt duration exceeds exam duration"""
+        duration = self.calculate_duration()
+        return duration and duration > self.exam.duration
+
+    def submit(self):
+        """Submit the exam attempt"""
+        self.end_time = timezone.now()
+        self.status = 'submitted'
+        self.is_late_submission = self.exam.is_late_submission(self.end_time)
+        self.save()
+
+    def abandon(self):
+        """Mark attempt as abandoned"""
+        self.end_time = timezone.now()
+        self.status = 'abandoned'
+        self.save()

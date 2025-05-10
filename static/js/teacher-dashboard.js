@@ -88,7 +88,7 @@ $(document).ready(function() {
         
         // Fetch subjects from API
         $.ajax({
-            url: '/api/subjects/',
+            url: '/api/exams/subjects/',
             method: 'GET',
             headers: {
                 'Authorization': 'Bearer ' + localStorage.getItem('token')
@@ -124,6 +124,25 @@ $(document).ready(function() {
                                         </div>
                                     </div>
                                     
+                                    <div class="form-group">
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-graduation-cap"></i>
+                                            <select id="semester" required>
+                                                <option value="">Select Semester</option>
+                                                <option value="1">Semester 1</option>
+                                                <option value="2">Semester 2</option>
+                                                <option value="3">Semester 3</option>
+                                                <option value="4">Semester 4</option>
+                                                <option value="5">Semester 5</option>
+                                                <option value="6">Semester 6</option>
+                                                <option value="7">Semester 7</option>
+                                                <option value="8">Semester 8</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
                                     <div class="form-group">
                                         <div class="input-with-icon">
                                             <i class="fas fa-clock"></i>
@@ -186,13 +205,14 @@ $(document).ready(function() {
         const examData = {
             title: $("#examTitle").val().trim(),
             subject: $("#subject").val(),
+            semester: $("#semester").val(),
             duration: parseInt($("#duration").val()),
             deadline: $("#deadline").val(),
             totalQuestions: parseInt($("#totalQuestions").val())
         };
         
         // Validate inputs
-        if (!examData.title || !examData.subject || !examData.duration || !examData.deadline || !examData.totalQuestions) {
+        if (!examData.title || !examData.subject || !examData.semester || !examData.duration || !examData.deadline || !examData.totalQuestions) {
             showToast("Please fill in all fields", "error");
             return;
         }
@@ -792,7 +812,7 @@ $(document).ready(function() {
             }
         });
     }
-    
+
     function displayPerformanceReport(data) {
         // Clear previous content
         $('#mainContent').empty();
@@ -925,7 +945,7 @@ $(document).ready(function() {
             }
         });
     }
-    
+
     function displayQuestionAnalysis(data) {
         // Clear previous content
         $('#mainContent').empty();

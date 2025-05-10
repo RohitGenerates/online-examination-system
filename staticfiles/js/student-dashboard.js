@@ -82,9 +82,10 @@ $(document).ready(function() {
         $("#dynamicContentContainer").hide().html(examListHTML).slideDown(300);
         
         // Fetch real exams from the database
-        fetch('/api/student/exams', {
+        fetch('api/available-exams/', {
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token')
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'X-CSRFToken': getCookie('csrftoken')
             }
         })
         .then(response => {
