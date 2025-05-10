@@ -39,7 +39,7 @@ class User(AbstractUser):
     
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='student')  # Default to student
-    phone_number = models.CharField(max_length=15, blank=True)
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
 
     def __str__(self):
         return self.username
@@ -65,7 +65,7 @@ class User(AbstractUser):
         return None
 
     # Override the save method to ensure role is set based on ID format
-    def user_save(self, *args, **kwargs):
+    def save(self, *args, **kwargs):
         # Set role based on ID format if not explicitly set
         if not self.role or self.role not in [choice[0] for choice in self.ROLE_CHOICES]:
             role_from_id = self.get_role_from_id()
@@ -74,14 +74,12 @@ class User(AbstractUser):
         # If this is a new user, ensure department is set
         if not self.pk:
             department = self.get_department_from_id()
-        super(type(self), self).save(*args, **kwargs)
-
-    # Add this method to your User model
-    save = user_save
+        super().save(*args, **kwargs)
 
 class Student(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile')
-    department = models.ForeignKey('exams.Department', on_delete=models.CASCADE)
+    # Use string reference to avoid circular imports during migrations
+    department = models.ForeignKey('exams.Department', on_delete=models.CASCADE, null=True, blank=True)
     semester = models.IntegerField(choices=[(i, f'Semester {i}') for i in range(1, 9)])
     
     def __str__(self):
@@ -89,6 +87,7 @@ class Student(models.Model):
 
     def get_available_exams(self):
         """Get exams available for this student"""
+        # Import here to avoid circular imports
         from exams.models import Exam
         return Exam.objects.filter(
             department=self.department,
@@ -97,52 +96,56 @@ class Student(models.Model):
         ).exclude(
             studentexamresult__student=self
         )
+    
+    @classmethod
+    def update_departments_from_username(cls):
+        """
+        Update student departments based on username pattern.
+        Called in AppConfig.ready() to update departments for existing students.
+        """
+        # Import here to avoid circular imports
+        from exams.models import Department
+        
+        for student in cls.objects.filter(department__isnull=True):
+            # Assuming username format where position 5-7 contains department code
+            if len(student.user.username) >= 7:
+                dept_code = student.user.username[5:7]
+                try:
+                    department = Department.objects.get(code=dept_code)
+                    student.department = department
+                    # Also update semester from username if needed
+                    if student.semester is None and student.user.username[0] in '12345678':
+                        student.semester = int(student.user.username[0])
+                    student.save()
+                except Department.DoesNotExist:
+                    print(f"Department not found for code: {dept_code}")
 
 class Teacher(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='teacher_profile')
-    department = models.ForeignKey('exams.Department', on_delete=models.CASCADE)
+    # Use string reference to avoid circular imports during migrations
+    department = models.ForeignKey('exams.Department', on_delete=models.CASCADE, null=True, blank=True)
     
     def __str__(self):
         return f"{self.user.username} - {self.department}"
-
-# Signal handler to create student/teacher profiles
-def create_user_profile(sender, instance, created, **kwargs):
-    """Create corresponding profile when user is created"""
-    if created:
-        # Get department from ID
-        dept_code = instance.username[5:7]  # Extract department code (cg, cs, is, ml, ds)
+    
+    @classmethod
+    def update_departments_from_username(cls):
+        """
+        Update teacher departments based on username pattern.
+        Called in AppConfig.ready() to update departments for existing teachers.
+        """
+        # Import here to avoid circular imports
         from exams.models import Department
         
-        # Map department codes to names
-        dept_mapping = {
-            'cg': 'Computer Science Design',
-            'cs': 'Computer Science Engineering',
-            'is': 'Information Science Engineering',
-            'ml': 'Artificial Intelligence & Machine Learning',
-            'ds': 'Artificial Intelligence & Data Science'
-        }
-        
-        dept_name = dept_mapping.get(dept_code)
-        if dept_name:
-            department, _ = Department.objects.get_or_create(
-                name=dept_name,
-                code=dept_code
-            )
-            
-            if instance.role == 'student':
-                # Create student profile - extract semester from ID
-                semester = int(instance.username[0])  # First digit is semester
-                Student.objects.create(
-                    user=instance,
-                    department=department,
-                    semester=semester
-                )
-            elif instance.role == 'teacher':
-                # Create teacher profile
-                Teacher.objects.create(
-                    user=instance,
-                    department=department
-                )
+        for teacher in cls.objects.filter(department__isnull=True):
+            # Assuming username format where position 5-7 contains department code
+            if len(teacher.user.username) >= 7:
+                dept_code = teacher.user.username[5:7]
+                try:
+                    department = Department.objects.get(code=dept_code)
+                    teacher.department = department
+                    teacher.save()
+                except Department.DoesNotExist:
+                    print(f"Department not found for code: {dept_code}")
 
-# Connect the signal
-post_save.connect(create_user_profile, sender=User)
+# We'll move the signal handler to signals.py

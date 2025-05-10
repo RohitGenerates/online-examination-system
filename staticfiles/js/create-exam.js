@@ -1,12 +1,12 @@
-// Get exam ID from URL
-const urlParams = new URLSearchParams(window.location.search);
-const examId = urlParams.get('id');
+// Get exam ID from URL path instead of query parameters
+const examId = window.location.pathname.split('/').filter(Boolean).pop();
 
 // Exam data structure with enhanced storage capabilities
 let examData = {
     id: examId,
     title: '',
     subject: '',
+    semester: '',
     duration: 60,
     totalQuestions: 10,
     createdAt: new Date().toISOString(),
@@ -19,6 +19,8 @@ let draftKey = `examDraft_${examId}`;
 
 // Initialize the editor
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Loading exam data for ID:', examId); // Debug log
+    
     // Load exam data from server first
     loadExamData();
     
@@ -26,8 +28,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('prevQuestion').addEventListener('click', prevQuestion);
     document.getElementById('nextQuestion').addEventListener('click', nextQuestion);
     document.getElementById('createExamBtn').addEventListener('click', createExam);
-    document.getElementById('backToDashboard').addEventListener('click', goToDashboard);
     document.getElementById('backToDashboardTop').addEventListener('click', goToDashboard);
+    document.getElementById('backToDashboard').addEventListener('click', goToDashboard);
 
     // Set correct answer
     document.querySelectorAll('.set-correct-btn').forEach(btn => {
@@ -118,6 +120,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadExamData() {
+    console.log('Fetching exam data from:', `/api/exams/${examId}/`); // Debug log
+    
     // Fetch exam data from server
     fetch(`/api/exams/${examId}/`, {
         method: 'GET',
@@ -127,17 +131,20 @@ function loadExamData() {
         }
     })
     .then(response => {
+        console.log('Response status:', response.status); // Debug log
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
     })
     .then(data => {
+        console.log('Received exam data:', data); // Debug log
         if (data.success) {
             examData = {
                 ...examData,
                 title: data.data.title,
                 subject: data.data.subject,
+                semester: data.data.semester,
                 duration: data.data.duration,
                 totalQuestions: data.data.totalQuestions
             };
@@ -380,14 +387,14 @@ async function createExam() {
         
         const result = await response.json();
         if (result.success) {
-            // Show success modal
-            document.getElementById('successModal').style.display = 'flex';
-            document.querySelector('.exam-creation-container').style.display = 'none';
-            
-            // Clear client-side storage
-            clearExamData();
-            
-            showToast('Exam created successfully!', 'success');
+        // Show success modal
+        document.getElementById('successModal').style.display = 'flex';
+        document.querySelector('.exam-creation-container').style.display = 'none';
+        
+        // Clear client-side storage
+        clearExamData();
+        
+        showToast('Exam created successfully!', 'success');
         } else {
             throw new Error(result.message || 'Failed to create exam');
         }
