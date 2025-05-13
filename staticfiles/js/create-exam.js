@@ -143,11 +143,13 @@ function loadExamData() {
             examData = {
                 ...examData,
                 title: data.data.title,
-                subject: data.data.subject,
+                subject: data.data.subject, // Now contains {id, name} object
+                subjectName: data.data.subject.name, // For display purposes
                 semester: data.data.semester,
                 duration: data.data.duration,
                 totalQuestions: data.data.totalQuestions
             };
+            console.log('Updated exam data:', examData); // Debug log
             
             // Load any saved progress
             loadSavedProgress();
@@ -173,16 +175,16 @@ function loadExamData() {
 function goToDashboard() {
     if (examData.questions.length > 0) {
         if (confirm('You have unsaved changes. Are you sure you want to leave?')) {
-            window.location.href = '/accounts/teacher-dashboard/';
+            window.location.href = '/accounts/teacher/dashboard/';
         }
     } else {
-        window.location.href = '/accounts/teacher-dashboard/';
+        window.location.href = '/accounts/teacher/dashboard/';
     }
 }
 
 function displayExamInfo() {
     document.getElementById('examTitleDisplay').textContent = examData.title;
-    document.getElementById('examSubjectDisplay').textContent = `Subject: ${examData.subject}`;
+    document.getElementById('examSubjectDisplay').textContent = `Subject: ${examData.subjectName || (examData.subject && examData.subject.name) || examData.subject || ''}`;
     document.getElementById('examDurationDisplay').textContent = `Duration: ${examData.duration} mins`;
     document.getElementById('totalQuestionsDisplay').textContent = `Questions: ${examData.totalQuestions}`;
 }
@@ -369,7 +371,36 @@ async function createExam() {
     
     try {
         // Send exam data to server
-        const response = await fetch(`/api/exams/${examId}/questions/`, {
+        const response = await fetch('/api/exams/create/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                title: examData.meta.title,
+                subject: (typeof examData.meta.subject === 'object' && examData.meta.subject !== null) ? examData.meta.subject.id : examData.meta.subject,
+                semester: examData.meta.semester,
+                duration: examData.meta.duration,
+                deadline: examData.meta.deadline,
+                totalQuestions: parseInt(document.getElementById('totalQuestions').value, 10)
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to create exam');
+        }
+
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.message || 'Failed to create exam');
+        }
+
+        const examId = result.data.exam_id;
+        
+        // Now add the questions to the exam
+        const questionsResponse = await fetch(`/api/exams/${examId}/questions/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -380,13 +411,25 @@ async function createExam() {
             })
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to create exam');
+        if (!questionsResponse.ok) {
+            const errorData = await questionsResponse.json();
+            throw new Error(errorData.message || 'Failed to add questions');
         }
+
+        const questionsResult = await questionsResponse.json();
+        if (!questionsResult.success) {
+            throw new Error(questionsResult.message || 'Failed to add questions');
+        }
+
+        // Show success message with deadlines
+        const endTime = new Date(result.data.end_time);
+        const lateDeadline = new Date(result.data.late_submission_end);
         
-        const result = await response.json();
-        if (result.success) {
+        showToast(
+            `Exam created successfully! Regular deadline: ${endTime.toLocaleString()}\nLate submissions until: ${lateDeadline.toLocaleString()}`,
+            'success'
+        );
+
         // Show success modal
         document.getElementById('successModal').style.display = 'flex';
         document.querySelector('.exam-creation-container').style.display = 'none';
@@ -394,14 +437,38 @@ async function createExam() {
         // Clear client-side storage
         clearExamData();
         
-        showToast('Exam created successfully!', 'success');
-        } else {
-            throw new Error(result.message || 'Failed to create exam');
-        }
+        // Explicitly redirect to dashboard after short delay
+        setTimeout(function() {
+            window.location.href = '/accounts/teacher/dashboard/';
+        }, 1200);
     } catch (error) {
         console.error('Error creating exam:', error);
         showToast('Failed to create exam: ' + error.message, 'error');
+        
+        // Enable retry button
+        document.getElementById('createExamBtn').disabled = false;
+        document.getElementById('createExamBtn').innerHTML = 
+            '<i class="fas fa-redo"></i> Try Again';
     }
+}
+
+// Helper function to clear exam data
+function clearExamData() {
+    localStorage.removeItem(`examDraft_${examData.meta.title}`);
+    sessionStorage.removeItem('examTitle');
+    sessionStorage.removeItem('examSubject');
+    sessionStorage.removeItem('examSemester');
+    sessionStorage.removeItem('examDuration');
+    sessionStorage.removeItem('examDeadline');
+    sessionStorage.removeItem('totalQuestions');
+    examData.questions = [];
+}
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
 }
 
 function clearExamData() {

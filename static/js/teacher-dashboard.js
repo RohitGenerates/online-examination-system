@@ -207,7 +207,7 @@ $(document).ready(function() {
             subject: $("#subject").val(),
             semester: $("#semester").val(),
             duration: parseInt($("#duration").val()),
-            deadline: $("#deadline").val(),
+            deadline: new Date($("#deadline").val()).toISOString(),
             totalQuestions: parseInt($("#totalQuestions").val())
         };
         
@@ -300,13 +300,13 @@ $(document).ready(function() {
         
         // Make API call to fetch exams
         $.ajax({
-            url: '/api/exams/',
+            url: '/api/exams/list/',
             method: 'GET',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token'),
                 'X-CSRFToken': getCookie('csrftoken')
             },
             success: function(response) {
+                console.log('Exams response:', response); // Debug log
                 if (response.success) {
                     displayExams(response.data);
                 } else {
@@ -315,6 +315,7 @@ $(document).ready(function() {
                 }
             },
             error: function(xhr, status, error) {
+                console.error('Error fetching exams:', xhr.responseText); // Debug log
                 showToast(error || 'Error fetching exams', 'error');
                 $(".exam-list").html('<div class="no-exams">Error loading exams.</div>');
             }
@@ -361,6 +362,215 @@ $(document).ready(function() {
             const examId = $(this).data('exam-id');
             deleteExam(examId);
         });
+    }
+
+    function editExam(examId) {
+        // Show loading state
+        $(".exam-list").html('<div class="loading">Loading exam details...</div>');
+        
+        // Fetch exam details
+        $.ajax({
+            url: `/api/exams/${examId}/`,
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            success: function(response) {
+                if (response.success) {
+                    const exam = response.data;
+                    
+                    // Fetch subjects for the dropdown
+                    $.ajax({
+                        url: '/api/exams/subjects/',
+                        method: 'GET',
+                        headers: {
+                            'X-CSRFToken': getCookie('csrftoken')
+                        },
+                        success: function(subjectsResponse) {
+                            if (subjectsResponse.success) {
+                                const subjects = subjectsResponse.data;
+                                let subjectOptions = '';
+                                subjects.forEach(subject => {
+                                    const selected = subject.id === exam.subject.id ? 'selected' : '';
+                                    subjectOptions += `<option value="${subject.id}" ${selected}>${subject.name}</option>`;
+                                });
+                                
+                                // Create edit form
+                                const formHTML = `
+                                    <div class="edit-exam-container">
+                                        <h2>Edit Exam</h2>
+                                        <form id="editExamForm" class="exam-form" data-exam-id="${exam.id}">
+                                            <div class="form-row">
+                                                <div class="form-group">
+                                                    <div class="input-with-icon">
+                                                        <i class="fas fa-heading"></i>
+                                                        <input type="text" id="examTitle" placeholder="Exam Title" value="${exam.title}" required>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="form-row">
+                                                <div class="form-group">
+                                                    <div class="input-with-icon">
+                                                        <i class="fas fa-book"></i>
+                                                        <select id="subject_id" required>
+                                                            ${subjectOptions}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="form-group">
+                                                    <div class="input-with-icon">
+                                                        <i class="fas fa-graduation-cap"></i>
+                                                        <select id="semester" required>
+                                                            <option value="1" ${exam.semester === 1 ? 'selected' : ''}>Semester 1</option>
+                                                            <option value="2" ${exam.semester === 2 ? 'selected' : ''}>Semester 2</option>
+                                                            <option value="3" ${exam.semester === 3 ? 'selected' : ''}>Semester 3</option>
+                                                            <option value="4" ${exam.semester === 4 ? 'selected' : ''}>Semester 4</option>
+                                                            <option value="5" ${exam.semester === 5 ? 'selected' : ''}>Semester 5</option>
+                                                            <option value="6" ${exam.semester === 6 ? 'selected' : ''}>Semester 6</option>
+                                                            <option value="7" ${exam.semester === 7 ? 'selected' : ''}>Semester 7</option>
+                                                            <option value="8" ${exam.semester === 8 ? 'selected' : ''}>Semester 8</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="form-row">
+                                                <div class="form-group">
+                                                    <div class="input-with-icon">
+                                                        <i class="fas fa-clock"></i>
+                                                        <input type="number" id="duration" min="15" placeholder="Duration (minutes)" value="${exam.duration}" required>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="form-actions">
+                                                <button type="submit" class="btn primary-btn">
+                                                    <i class="fas fa-save"></i> Save Changes
+                                                </button>
+                                                <button type="button" id="cancelEdit" class="btn secondary-btn">
+                                                    <i class="fas fa-times"></i> Cancel
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                `;
+                                
+                                $(".exam-list").html(formHTML);
+                                
+                                // Form submission handler
+                                $("#editExamForm").submit(function(e) {
+                                    e.preventDefault();
+                                    updateExam(exam.id);
+                                });
+                                
+                                // Cancel button handler
+                                $("#cancelEdit").click(function() {
+                                    loadManageExams();
+                                });
+                            } else {
+                                showToast('Failed to load subjects: ' + subjectsResponse.message, 'error');
+                                loadManageExams();
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            showToast('Error loading subjects: ' + error, 'error');
+                            loadManageExams();
+                        }
+                    });
+                } else {
+                    showToast(response.message || 'Failed to load exam details', 'error');
+                    loadManageExams();
+                }
+            },
+            error: function(xhr, status, error) {
+                showToast(error || 'Error loading exam details', 'error');
+                loadManageExams();
+            }
+        });
+    }
+    
+    function updateExam(examId) {
+        // Get form values
+        const examData = {
+            title: $("#examTitle").val().trim(),
+            subject_id: $("#subject_id").val(),
+            semester: $("#semester").val(),
+            duration: parseInt($("#duration").val())
+        };
+        
+        // Validate inputs
+        if (!examData.title || !examData.subject_id || !examData.semester || !examData.duration) {
+            showToast("Please fill in all fields", "error");
+            return;
+        }
+
+        // Validate numeric fields
+        if (isNaN(examData.duration) || examData.duration <= 0) {
+            showToast("Duration must be a positive number", "error");
+            return;
+        }
+        
+        // Show loading state
+        $(".primary-btn").html('<i class="fas fa-spinner fa-spin"></i> Saving...').prop('disabled', true);
+        
+        console.log('Sending updated exam data:', examData); // Debug log
+        
+        // Make API call to update exam
+        $.ajax({
+            url: `/api/exams/${examId}/`,
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            data: JSON.stringify(examData),
+            success: function(response) {
+                console.log('Update exam response:', response); // Debug log
+                if (response.success) {
+                    showToast('Exam updated successfully!', 'success');
+                    loadManageExams();
+                } else {
+                    showToast(response.message || 'Failed to update exam', 'error');
+                    $(".primary-btn").html('<i class="fas fa-save"></i> Save Changes').prop('disabled', false);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error updating exam:', xhr.responseText); // Debug log
+                showToast(xhr.responseJSON?.message || error || 'Error updating exam', 'error');
+                $(".primary-btn").html('<i class="fas fa-save"></i> Save Changes').prop('disabled', false);
+            }
+        });
+    }
+    
+    function deleteExam(examId) {
+        if (confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
+            // Show loading state
+            $(".delete-btn[data-exam-id=" + examId + "]").html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
+            
+            // Make API call to delete exam
+            $.ajax({
+                url: `/api/exams/${examId}/`,
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                success: function(response) {
+                    if (response.success) {
+                        showToast('Exam deleted successfully!', 'success');
+                        fetchExams(); // Refresh the list
+                    } else {
+                        showToast(response.message || 'Failed to delete exam', 'error');
+                        $(".delete-btn[data-exam-id=" + examId + "]").html('<i class="fas fa-trash"></i> Delete').prop('disabled', false);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    showToast(xhr.responseJSON?.message || error || 'Error deleting exam', 'error');
+                    $(".delete-btn[data-exam-id=" + examId + "]").html('<i class="fas fa-trash"></i> Delete').prop('disabled', false);
+                }
+            });
+        }
     }
 
     function loadStudentResults() {

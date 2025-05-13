@@ -43,12 +43,10 @@ class Department(models.Model):
 
 class Subject(models.Model):
     name = models.CharField(max_length=100)
-    code = models.CharField(max_length=10, unique=True)
-    department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    semester = models.IntegerField(choices=[(i, f'Semester {i}') for i in range(1, 9)])
 
     def __str__(self):
-        return f"{self.name} - {self.department} - Semester {self.semester}"
+        return self.name
+
 
 class Exam(models.Model):
     title = models.CharField(max_length=200)
@@ -56,10 +54,11 @@ class Exam(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     semester = models.IntegerField(choices=[(i, f'Semester {i}') for i in range(1, 9)])
     duration = models.IntegerField(help_text="Duration in minutes")
+    total_questions = models.IntegerField(default=0)
     passing_score = models.IntegerField()
-    start_time = models.DateTimeField()
-    end_time = models.DateTimeField()
-    late_submission_end = models.DateTimeField()
+    start_time = models.DateTimeField(null=True, blank=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+    late_submission_end = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey('accounts.Teacher', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     questions = models.JSONField(default=list)

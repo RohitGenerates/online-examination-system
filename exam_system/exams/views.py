@@ -6,14 +6,16 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
-from .models import Exam, Question, StudentExamResult, ExamAttempt
+from .models import Exam, Question, StudentExamResult, ExamAttempt, Subject, Department
 from accounts.models import User, Student, Teacher
 from datetime import datetime, timedelta
 import json
+from .serializers import ExamSerializer
 import random
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework import status
 from accounts.serializers import ExamSerializer
 from django.db.models import Avg, Max, Min, Count
 from django.db.models.functions import Cast
@@ -34,76 +36,116 @@ def exam_list(request):
     else:  # admin
         exams = Exam.objects.all()
 
-    context = {'exams': exams}
+
+    context = {'exams': exams, 'departments': Department.objects.all()}
     return render(request, 'exams/exam_list.html', context)
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def create_exam(request, exam_id=None):
-    """Handle both exam creation and question editor view"""
+    """Handles both exam creation (POST) and the question editor view (GET)."""
+
+    # Ensure the user is a teacher
     if not hasattr(request.user, 'teacher_profile'):
         return Response({'success': False, 'message': 'Not a teacher'}, status=403)
-    
+
+    teacher = request.user.teacher_profile
+
     if request.method == 'GET':
-        # This is the question editor view
+        # Render question editor for an existing exam
         if exam_id:
             try:
-                exam = Exam.objects.get(id=exam_id, created_by=request.user.teacher_profile)
-                return render(request, 'exams/create_exam.html', {'exam': exam})
+                exam = Exam.objects.get(id=exam_id, created_by=teacher)
+                return render(request, 'exams/create_exam.html', {'exam': exam, 'departments': Department.objects.all()})
             except Exam.DoesNotExist:
                 return Response({'success': False, 'message': 'Exam not found'}, status=404)
-    
+        else:
+            return Response({'success': False, 'message': 'Exam ID is required for GET'}, status=400)
+
     elif request.method == 'POST':
-        # This is the API endpoint for creating a new exam
         try:
-            data = request.data
-            print("Received data:", data)  # Debug log
-            
+            # Copy and prepare incoming data
+            data = request.data.copy()
+
             # Validate required fields
-            required_fields = ['title', 'subject', 'duration', 'deadline', 'totalQuestions']
+            required_fields = ['title', 'subject', 'duration', 'deadline', 'totalQuestions', 'semester']
             for field in required_fields:
                 if field not in data:
-                    return Response({'success': False, 'message': f'Missing required field: {field}'}, status=400)
+                    return Response({
+                        'success': False,
+                        'message': f'Missing required field: {field}'
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Convert deadline to datetime
+            # Ensure subject exists
+            subject_id = data.get('subject')
+            try:
+                subject = Subject.objects.get(id=subject_id)
+                # Add subject_id to data for the serializer
+                data['subject_id'] = subject_id
+            except Subject.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': f'Subject with ID {subject_id} does not exist'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Parse and validate deadline
             try:
                 deadline = datetime.fromisoformat(data['deadline'].replace('Z', '+00:00'))
+                late_submission_end = deadline + timedelta(days=2)
+                data['start_time'] = deadline
+                data['end_time'] = deadline
+                data['late_submission_end'] = late_submission_end
             except ValueError as e:
                 return Response({'success': False, 'message': f'Invalid deadline format: {str(e)}'}, status=400)
 
-            # Create exam
-            exam = Exam.objects.create(
-                title=data['title'],
-                subject_id=data['subject'],
-                semester=data['semester'],
-                duration=int(data['duration']),
-                total_questions=int(data['totalQuestions']),
-                passing_score=50,  # Default passing score
-                start_time=deadline,
-                end_time=deadline,
-                created_by=request.user.teacher_profile,
-                questions=[]  # Initialize with empty questions array
-            )
+            # Add additional fields to data
+            data['created_by'] = teacher.id
+            data['department'] = teacher.department.id if teacher.department else None
+            data['passing_score'] = 50  # default
+            data['questions'] = []
+            
+            # Map totalQuestions to total_questions (snake_case for Django model)
+            if 'totalQuestions' in data:
+                data['total_questions'] = int(data['totalQuestions'])
+            else:
+                # Default to 5 questions if not specified
+                data['total_questions'] = 5
 
-            print(f"Created exam with ID: {exam.id}")  # Debug log
+            if not teacher.department:
+                return Response({'success': False, 'message': 'Teacher has no department assigned'}, status=400)
 
-            return Response({
-                'success': True,
-                'message': 'Exam created successfully',
-                'data': {
-                    'exam_id': exam.id,
-                    'title': exam.title,
-                    'subject': exam.subject.name,
-                    'semester': exam.semester,
-                    'duration': exam.duration,
-                    'totalQuestions': exam.total_questions
-                }
-            })
+            # Serialize and save
+            serializer = ExamSerializer(data=data)
+            if serializer.is_valid():
+                # Save with created_by and other fields manually
+                exam = serializer.save(
+                    created_by=teacher,
+                    department=teacher.department,
+                    late_submission_end=late_submission_end,
+                    total_questions=int(data.get('totalQuestions', 5))  # Explicitly set total_questions
+                )
+                
+                return Response({
+                    'success': True,
+                    'message': 'Exam created successfully',
+                    'data': {
+                        'exam_id': exam.id
+                    }
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response({
+                    'success': False,
+                    'message': 'Validation failed',
+                    'errors': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
-            print(f"Error creating exam: {str(e)}")  # Debug log
             import traceback
-            print(traceback.format_exc())  # Print full traceback
-            return Response({'success': False, 'message': str(e)}, status=500)
+            print(traceback.format_exc())  # Optional debug logging
+            return Response({
+                'success': False,
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 def create_exam_view(request):
     """View for rendering the initial exam creation form"""
@@ -249,7 +291,9 @@ def api_student_exams(request):
         {
             'id': exam.id,
             'title': exam.title,
-            'subject': exam.subject,
+            'subject': exam.subject.name,
+            'department': exam.department.name,
+            'department_id': exam.department.id,
             'duration': exam.duration,
             'totalQuestions': getattr(exam, 'total_questions', 0),
             'deadline': exam.end_time.isoformat() if exam.end_time else '',
@@ -316,14 +360,31 @@ def list_subjects(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def list_exams(request):
+    """List all exams created by the teacher"""
     if not hasattr(request.user, 'teacher_profile'):
         return Response({'success': False, 'message': 'Not a teacher'}, status=403)
+    
     teacher = request.user.teacher_profile
     exams = Exam.objects.filter(created_by=teacher).order_by('-created_at')
-    serializer = ExamSerializer(exams, many=True)
+    
+    # Format the response data manually to include all required fields
+    exams_data = [{
+        'id': exam.id,
+        'title': exam.title,
+        'subject': exam.subject.name,
+        'subject_id': exam.subject.id,
+        'department': exam.department.name,
+        'department_id': exam.department.id,
+        'semester': exam.semester,
+        'duration': exam.duration,
+        'totalQuestions': len(exam.questions) if hasattr(exam, 'questions') else 0,
+        'deadline': exam.end_time.isoformat() if exam.end_time else None,
+        'status': exam.status
+    } for exam in exams]
+    
     return Response({
         'success': True,
-        'data': serializer.data
+        'data': exams_data
     })
 
 @api_view(['GET'])
@@ -557,7 +618,9 @@ def get_available_exams(request):
         exams_data = [{
             'id': exam.id,
             'title': exam.title,
-            'subject': exam.subject,
+            'subject': exam.subject.name,
+            'department': exam.department.name,
+            'department_id': exam.department.id,
             'duration': exam.duration,
             'total_questions': len(exam.questions),
             'deadline': exam.end_time.isoformat(),
@@ -578,30 +641,164 @@ def get_available_exams(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_exam(request, exam_id):
-    """Get exam details"""
-    try:
-        exam = Exam.objects.get(id=exam_id)
+def api_student_results(request):
+    """Get student results - for both teachers and students"""
+    if hasattr(request.user, 'teacher_profile'):
+        # For teachers: get results of all students for their exams
+        teacher = request.user.teacher_profile
+        
+        # Get all exams created by this teacher
+        exams = Exam.objects.filter(created_by=teacher)
+        
+        # Get all results for these exams
+        results = StudentExamResult.objects.filter(exam__in=exams)
+        
+        results_data = [
+            {
+                'id': result.id,
+                'student': result.student.user.username,
+                'student_id': result.student.id,
+                'exam': result.exam.title,
+                'exam_id': result.exam.id,
+                'subject': result.exam.subject.name,
+                'score': result.obtained_marks,
+                'status': result.status,
+                'date': result.submitted_at.isoformat()
+            }
+            for result in results
+        ]
+        
         return Response({
             'success': True,
-            'data': {
-                'id': exam.id,
-                'title': exam.title,
-                'subject': exam.subject,
-                'duration': exam.duration,
-                'totalQuestions': exam.total_questions,
-                'questions': exam.questions
-            }
+            'data': results_data
         })
+        
+    elif hasattr(request.user, 'student_profile'):
+        # For students: get only their own results
+        student = request.user.student_profile
+        results = StudentExamResult.objects.filter(student=student)
+        
+        results_data = [
+            {
+                'id': result.id,
+                'exam': result.exam.title,
+                'exam_id': result.exam.id,
+                'subject': result.exam.subject.name,
+                'score': result.obtained_marks,
+                'status': result.status,
+                'date': result.submitted_at.isoformat()
+            }
+            for result in results
+        ]
+        
+        return Response({
+            'success': True,
+            'data': results_data
+        })
+    
+    else:
+        return Response({'success': False, 'message': 'Not authorized'}, status=403)
+
+@api_view(['GET', 'PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def get_exam(request, exam_id):
+    """Get, update or delete exam details"""
+    try:
+        # Ensure the user is a teacher
+        if not hasattr(request.user, 'teacher_profile'):
+            return Response({'success': False, 'message': 'Not a teacher'}, status=403)
+            
+        teacher = request.user.teacher_profile
+        exam = Exam.objects.get(id=exam_id, created_by=teacher)
+        
+        if request.method == 'GET':
+            return Response({
+                'success': True,
+                'data': {
+                    'id': exam.id,
+                    'title': exam.title,
+                    'subject': {
+                        'id': exam.subject.id,
+                        'name': exam.subject.name
+                    },
+                    'semester': exam.semester,
+                    'duration': exam.duration,
+                    'totalQuestions': exam.total_questions,
+                    'questions': exam.questions
+                }
+            })
+        
+        elif request.method == 'PUT':
+            data = request.data
+            
+            # Update basic exam details
+            if 'title' in data:
+                exam.title = data['title']
+            if 'duration' in data:
+                exam.duration = data['duration']
+            if 'semester' in data:
+                exam.semester = data['semester']
+            if 'subject_id' in data:
+                try:
+                    subject = Subject.objects.get(id=data['subject_id'])
+                    exam.subject = subject
+                except Subject.DoesNotExist:
+                    return Response({
+                        'success': False,
+                        'message': f"Subject with ID {data['subject_id']} does not exist"
+                    }, status=400)
+            if 'deadline' in data:
+                try:
+                    deadline = datetime.fromisoformat(data['deadline'].replace('Z', '+00:00'))
+                    exam.end_time = deadline
+                    exam.late_submission_end = deadline + timedelta(days=2)
+                except ValueError as e:
+                    return Response({'success': False, 'message': f'Invalid deadline format: {str(e)}'}, status=400)
+            
+            exam.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Exam updated successfully',
+                'data': {
+                    'id': exam.id,
+                    'title': exam.title,
+                    'subject': {
+                        'id': exam.subject.id,
+                        'name': exam.subject.name
+                    },
+                    'semester': exam.semester,
+                    'duration': exam.duration
+                }
+            })
+        
+        elif request.method == 'DELETE':
+            # Check if there are any attempts for this exam
+            attempts = ExamAttempt.objects.filter(exam=exam).count()
+            if attempts > 0:
+                return Response({
+                    'success': False,
+                    'message': f'Cannot delete exam with {attempts} student attempts'
+                }, status=400)
+                
+            # Delete the exam
+            exam_title = exam.title
+            exam.delete()
+            
+            return Response({
+                'success': True,
+                'message': f'Exam "{exam_title}" deleted successfully'
+            })
+            
     except Exam.DoesNotExist:
         return Response({
             'success': False,
             'message': 'Exam not found'
         }, status=404)
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())  # Debug logging
         return Response({
             'success': False,
             'message': str(e)
         }, status=500)
-
-    

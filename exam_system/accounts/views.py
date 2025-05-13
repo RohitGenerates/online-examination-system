@@ -67,25 +67,60 @@ def signup(request):
                 dept_code = user_id[5:7]
                 department = dict(User.DEPARTMENT_CHOICES)[dept_code]
             
+            # Determine role from ID format
+            role = 'admin' if is_admin else 'student' if is_student_id else 'teacher'
+            print(f"Creating user {user_id} with role {role}")
+
             # Use transaction to ensure data consistency
             with transaction.atomic():
-                # Create user
+                # Create user with explicit role
                 user = User.objects.create_user(
                     username=user_id,
                     email=email,
                     password=password,
                     status='active',
-                    role='admin' if is_admin else 'student' if is_student_id else 'teacher'
+                    role=role  # Set the role explicitly
                 )
-                # Do NOT manually create Student or Teacher profile here; let the post_save signal handle it
-                if is_student_id and not semester:
-                    raise ValueError('Semester is required for students')
-            
+
+                # Manually create the profile to ensure it gets created
+                try:
+                    from exams.models import Department
+                    dept_code = user_id[5:7] if not is_admin else None
+                    if dept_code:
+                        try:
+                            department_obj = Department.objects.get(code=dept_code)
+                        except Department.DoesNotExist:
+                            department_obj = None
+                            print(f"Department not found for code: {dept_code}")
+                    else:
+                        department_obj = None
+
+                    # Create the appropriate profile
+                    if role == 'student':
+                        semester_val = int(user_id[0]) if user_id[0] in '12345678' else int(semester) if semester else 1
+                        if not hasattr(user, 'student_profile'):
+                            Student.objects.create(
+                                user=user,
+                                department=department_obj,
+                                semester=semester_val
+                            )
+                            print(f"Manually created student profile for {user_id}")
+                    elif role == 'teacher':
+                        if not hasattr(user, 'teacher_profile'):
+                            Teacher.objects.create(
+                                user=user,
+                                department=department_obj
+                            )
+                            print(f"Manually created teacher profile for {user_id}")
+                except Exception as e:
+                    print(f"Error creating profile: {str(e)}")
+                    # Continue anyway, as the signal handler should also try to create the profile
+
             return JsonResponse({
                 'message': 'User created successfully',
                 'redirect': '/accounts/login/'
             })
-            
+
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON data'}, status=400)
         except KeyError as e:
@@ -93,8 +128,9 @@ def signup(request):
         except ValueError as e:
             return JsonResponse({'error': str(e)}, status=400)
         except Exception as e:
+            print(f"Error in signup: {str(e)}")
             return JsonResponse({'error': str(e)}, status=400)
-    
+
     return render(request, 'accounts/signup.html')
 
 def student_details(request):
@@ -104,21 +140,21 @@ def student_details(request):
             username = data.get('username')
             department = data.get('department')
             semester = data.get('semester')
-            
+
             if not all([username, department, semester]):
                 return JsonResponse({'error': 'All fields are required'}, status=400)
-            
+
             user = User.objects.get(username=username)
             user.department = department
             user.semester = semester
             user.save()
-            
+
             return JsonResponse({'redirect': '/accounts/login/'})
         except User.DoesNotExist:
             return JsonResponse({'error': 'User not found'}, status=400)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
-    
+
     return render(request, 'accounts/student-details.html')
 
 def teacher_details(request):
@@ -128,21 +164,21 @@ def teacher_details(request):
             username = data.get('username')
             department = data.get('department')
             subject = data.get('subject')
-            
+
             if not all([username, department, subject]):
                 return JsonResponse({'error': 'All fields are required'}, status=400)
-            
+
             user = User.objects.get(username=username)
             user.department = department
             user.subject = subject
             user.save()
-            
+
             return JsonResponse({'redirect': '/accounts/login/'})
         except User.DoesNotExist:
             return JsonResponse({'error': 'User not found'}, status=400)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
-    
+
     return render(request, 'accounts/teacher-details.html')
 
 def login_view(request):
@@ -150,12 +186,12 @@ def login_view(request):
         username = request.POST.get('username')
         password = request.POST.get('password')
         user_type = request.POST.get('userType')
-        
+
         # Debug output to help diagnose issues
         print(f"Login attempt - Username: {username}, User Type: {user_type}")
-        
+
         user = authenticate(request, username=username, password=password)
-        
+
         if user is not None:
             # Check if the user account is active
             if not user.is_active:
@@ -164,38 +200,70 @@ def login_view(request):
                     return JsonResponse({'success': False, 'error': error_msg}, status=403)
                 messages.error(request, error_msg)
                 return render(request, 'accounts/login.html')
-            
+
             # Get user's actual role based on the model structure and ID format
             actual_role = user.role  # Use the role field from the User model
-            
+
             # Convert user_type to lowercase for comparison, or use a default value
             selected_type = user_type.lower() if user_type else ''
-            
+
             print(f"User roles - Model role: {actual_role}, Selected role: {selected_type}")
             print(f"Profile checks - Has student profile: {hasattr(user, 'student_profile')}, Has teacher profile: {hasattr(user, 'teacher_profile')}")
-            
+
             # Check if the selected type matches the user's actual type
-            type_matches = (selected_type == actual_role)
-            
+            type_matches = (selected_type == actual_role) or (not selected_type)
+
             if not type_matches:
                 error_msg = 'Invalid user type selected'
                 if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('accept') == 'application/json':
                     return JsonResponse({'success': False, 'error': error_msg}, status=400)
                 messages.error(request, error_msg)
                 return render(request, 'accounts/login.html')
-            
             login(request, user)
-            
+
             # Determine redirect URL based on user type
             if actual_role == 'admin':
                 redirect_url = reverse('accounts:admin_dashboard')
             elif actual_role == 'student':
+                # Fix issue: Check if student profile exists, if not create it
+                if not hasattr(user, 'student_profile'):
+                    print(f"[WARNING] Student profile missing for {user.username}. Creating it now.")
+                    try:
+                        from exams.models import Department
+                        dept_code = user.username[5:7]
+                        try:
+                            department = Department.objects.get(code=dept_code)
+                        except Department.DoesNotExist:
+                            department = None
+
+                        semester = int(user.username[0]) if user.username[0] in '12345678' else 1
+                        Student.objects.create(user=user, department=department, semester=semester)
+                        print(f"[RECOVERY] Created missing student profile for {user.username}")
+                    except Exception as e:
+                        print(f"[ERROR] Failed to create student profile for {user.username}: {str(e)}")
+
                 redirect_url = reverse('accounts:student_dashboard')
             elif actual_role == 'teacher':
+                # Fix issue: Check if teacher profile exists, if not create it
+                if not hasattr(user, 'teacher_profile'):
+                    print(f"[WARNING] Teacher profile missing for {user.username}. Creating it now.")
+                    try:
+                        from exams.models import Department
+                        dept_code = user.username[5:7]
+                        try:
+                            department = Department.objects.get(code=dept_code)
+                        except Department.DoesNotExist:
+                            department = None
+
+                        Teacher.objects.create(user=user, department=department)
+                        print(f"[RECOVERY] Created missing teacher profile for {user.username}")
+                    except Exception as e:
+                        print(f"[ERROR] Failed to create teacher profile for {user.username}: {str(e)}")
+
                 redirect_url = reverse('accounts:teacher_dashboard')
             else:
                 redirect_url = reverse('accounts:dashboard')
-            
+
             # If AJAX, return JSON
             if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('accept') == 'application/json':
                 return JsonResponse({'success': True, 'redirect': redirect_url})
@@ -219,7 +287,6 @@ def student_dashboard(request):
     if not hasattr(request.user, 'student_profile'):
         messages.error(request, 'You do not have permission to access the student dashboard')
         return redirect('accounts:dashboard')
-    
     student = request.user.student_profile
     available_exams = Exam.objects.filter(
         department=student.department,
@@ -227,7 +294,7 @@ def student_dashboard(request):
         start_time__lte=timezone.now(),
         end_time__gte=timezone.now()
     )
-    
+
     results = StudentExamResult.objects.filter(student=student)
     return render(request, 'accounts/student_dashboard.html', {
         'student': student,
@@ -240,7 +307,6 @@ def teacher_dashboard(request):
     if not hasattr(request.user, 'teacher_profile'):
         messages.error(request, 'You do not have permission to access the teacher dashboard')
         return redirect('accounts:dashboard')
-    
     teacher = request.user.teacher_profile
     created_exams = Exam.objects.filter(created_by=teacher)
     results = StudentExamResult.objects.filter(exam__in=created_exams)
@@ -255,7 +321,7 @@ def admin_dashboard(request):
     if not request.user.username.startswith('admin'):
         messages.error(request, 'You do not have permission to access the admin dashboard')
         return redirect('accounts:dashboard')
-    
+
     return render(request, 'accounts/admin_dashboard.html', {
         'user': request.user
     })
@@ -283,8 +349,7 @@ def profile(request):
 
         if 'profile_picture' in request.FILES:
             user.profile_picture = request.FILES['profile_picture']
-
-        user.save()
+            user.save()
         messages.success(request, 'Profile updated successfully!')
         return redirect('accounts:profile')
 
@@ -313,11 +378,11 @@ def system_logs(request):
 def take_exam(request):
     if not hasattr(request.user, 'student_profile'):
         raise PermissionDenied
-    
+
     try:
         # Get student's profile
         student = Student.objects.get(user=request.user)
-        
+
         # Get available exams for the student's department and semester
         exams = Exam.objects.filter(
             department=student.department,
@@ -326,7 +391,7 @@ def take_exam(request):
         ).exclude(
             id__in=StudentExamResult.objects.filter(student=student).values_list('exam_id', flat=True)
         )
-        
+
         return render(request, 'accounts/take_exam.html', {'exams': exams})
     except Student.DoesNotExist:
         messages.error(request, 'Student profile not found')
@@ -336,12 +401,12 @@ def take_exam(request):
 def view_student_results(request, student_id):
     if not hasattr(request.user, 'teacher_profile'):
         raise PermissionDenied
-    
+
     try:
         student = Student.objects.get(id=student_id)
         if student.department != request.user.teacher_profile.department:
             raise PermissionDenied
-            
+
         results = StudentExamResult.objects.filter(student=student)
         return render(request, 'accounts/view_student_results.html', {
             'student': student,
@@ -382,7 +447,7 @@ def create_exam(request):
             created_by=request.user,
             status='draft'
         )
-
+        
         return Response({
             'success': True,
             'message': 'Exam created successfully',
@@ -402,7 +467,7 @@ def list_exams(request):
         # Get all exams created by the teacher
         exams = Exam.objects.filter(created_by=request.user).order_by('-created_at')
         serializer = ExamSerializer(exams, many=True)
-        
+
         return Response({
             'success': True,
             'data': serializer.data
@@ -417,18 +482,18 @@ def student_results(request):
     try:
         # Get filter parameters
         exam_filter = request.GET.get('filter', '')
-        
+
         # Base queryset
         results = StudentResult.objects.filter(exam__created_by=request.user)
-        
+
         # Apply filters
         if exam_filter == 'recent':
             # Get results from last 7 days
             recent_date = datetime.now() - timedelta(days=7)
             results = results.filter(created_at__gte=recent_date)
-        
+
         serializer = StudentResultSerializer(results, many=True)
-        
+
         return Response({
             'success': True,
             'data': serializer.data
@@ -449,12 +514,12 @@ def generate_report(request, report_type):
                 avg_score=Avg('score'),
                 total_students=Count('student')
             )
-            
+
             return Response({
                 'success': True,
                 'data': list(performance_data)
             })
-            
+
         elif report_type == 'attendance':
             # Attendance report - number of students who took each exam
             attendance_data = StudentResult.objects.filter(
@@ -462,12 +527,12 @@ def generate_report(request, report_type):
             ).values('exam__title').annotate(
                 total_participants=Count('student')
             )
-            
+
             return Response({
                 'success': True,
                 'data': list(attendance_data)
             })
-            
+
         elif report_type == 'analysis':
             # Question analysis - performance by question
             analysis_data = StudentResult.objects.filter(
@@ -479,18 +544,18 @@ def generate_report(request, report_type):
                 correct_answers=Count('is_correct', filter=Q(is_correct=True)),
                 total_attempts=Count('is_correct')
             )
-            
+
             return Response({
                 'success': True,
                 'data': list(analysis_data)
             })
-            
+
         else:
             return Response({
                 'success': False,
                 'message': 'Invalid report type'
             }, status=400)
-            
+
     except Exception as e:
         return Response({'success': False, 'message': str(e)}, status=500)
 
@@ -499,9 +564,9 @@ def generate_report(request, report_type):
 def student_profile(request):
     if not hasattr(request.user, 'student_profile'):
         return Response({'success': False, 'message': 'Not a student account'}, status=403)
-    
+
     student = request.user.student_profile
-    
+
     if request.method == 'GET':
         # Return current profile data
         return Response({
@@ -516,13 +581,13 @@ def student_profile(request):
                 'username': request.user.username
             }
         })
-    
+
     elif request.method == 'PUT':
         try:
             # Parse the JSON data from the request body
             data = json.loads(request.body)
             user = request.user
-            
+
             # Update User model fields
             if 'first_name' in data:
                 user.first_name = data['first_name']
@@ -532,21 +597,21 @@ def student_profile(request):
                 # Make sure the phone_number field exists on your User model
                 if hasattr(user, 'phone_number'):
                     user.phone_number = data['phone_number']
-            
+
             # Update StudentProfile model fields
             if 'department' in data:
                 student.department = data['department']
             if 'semester' in data:
                 student.semester = data['semester']
-            
+
             # Save both models to persist changes
             user.save()
             student.save()
-            
+
             # Log successful save for debugging
             print(f"Profile updated successfully for user {user.username}")
             print(f"Updated data: {data}")
-            
+
             return Response({
                 'success': True,
                 'message': 'Profile updated successfully',
@@ -569,10 +634,10 @@ def student_profile(request):
 def teacher_profile(request):
     if not hasattr(request.user, 'teacher_profile'):
         return Response({'success': False, 'message': 'Not a teacher'}, status=403)
-    
+
     teacher = request.user.teacher_profile
     user = request.user
-    
+
     if request.method == 'GET':
         data = {
             'success': True,
@@ -586,21 +651,21 @@ def teacher_profile(request):
             }
         }
         return Response(data)
-    
+
     elif request.method == 'PUT':
         try:
             data = json.loads(request.body)
-            
+
             # Update user fields
             user.first_name = data.get('first_name', user.first_name)
             user.last_name = data.get('last_name', user.last_name)
             user.phone_number = data.get('phone_number', user.phone_number)
             user.save()
-            
+
             # Update teacher profile fields
             teacher.department = data.get('department', teacher.department)
             teacher.save()
-            
+
             return Response({
                 'success': True,
                 'data': {

@@ -20,30 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const backBtn = document.getElementById('backBtn');
     const toastContainer = document.getElementById('toastContainer');
 
-    // Sample exam data (would come from API in real app)
-    let examData = {
-        id: 1,
-        title: "Mathematics Midterm Exam",
-        subject: "Mathematics",
-        duration: 60,
-        totalMarks: 100,
-        questions: [
-            {
-                id: 1,
-                text: "What is the value of π (pi) to two decimal places?",
-                options: ["3.14", "3.16", "3.12", "3.18"],
-                correctAnswer: 0,
-                marks: 5
-            },
-            {
-                id: 2,
-                text: "What is the derivative of x²?",
-                options: ["x", "2x", "x³", "2"],
-                correctAnswer: 1,
-                marks: 10
-            }
-        ]
-    };
 
     let currentQuestionIndex = 0;
     let originalExamData = JSON.parse(JSON.stringify(examData));
@@ -102,26 +78,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Render each option
-        // question.options.forEach((option, optIndex) => {
-        //     const optionItem = document.createElement('div');
-        //     optionItem.className = `option-item ${optIndex === question.correctAnswer ? 'correct' : ''}`;
-        //     optionItem.dataset.option = String.fromCharCode(65 + optIndex);
+        question.options.forEach((option, optIndex) => {
+            const optionItem = document.createElement('div');
+            optionItem.className = `option-item ${optIndex === question.correctAnswer ? 'correct' : ''}`;
+            optionItem.dataset.option = String.fromCharCode(65 + optIndex);
             
-        //     optionItem.innerHTML = `
-        //         <div class="option-content">
-        //             <span class="option-label">${String.fromCharCode(65 + optIndex)}</span>
-        //             <input type="text" class="option-input" value="${option}" placeholder="Option ${String.fromCharCode(65 + optIndex)}">
-        //             <button class="remove-option">
-        //                 <i class="fas fa-times"></i>
-        //             </button>
-        //         </div>
-        //         <button class="set-correct-btn">
-        //             ${optIndex === question.correctAnswer ? '✓ Correct Answer' : 'Set as Correct'}
-        //         </button>
-        //     `;
+            optionItem.innerHTML = `
+                <div class="option-content">
+                    <span class="option-label">${String.fromCharCode(65 + optIndex)}</span>
+                    <input type="text" class="option-input" value="${option}" placeholder="Option ${String.fromCharCode(65 + optIndex)}">
+                    <button class="remove-option">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <button class="set-correct-btn">
+                    ${optIndex === question.correctAnswer ? '✓ Correct Answer' : 'Set as Correct'}
+                </button>
+            `;
             
-        //     optionsContainer.appendChild(optionItem);
-        // });
+            optionsContainer.appendChild(optionItem);
+        });
         
         currentQuestionNumber.textContent = index + 1;
     }
@@ -306,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Returning to dashboard', 'info');
         // In real app, would redirect to dashboard
         setTimeout(() => {
-            window.location.href = 'teacher-dashboard.html';
+            window.location.href = '/accounts/teacher/dashboard/';
         }, 1000);
     });
 

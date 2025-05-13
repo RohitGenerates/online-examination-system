@@ -64,20 +64,21 @@ class User(AbstractUser):
                 return name
         return None
 
-    # Override the save method to ensure role is set based on ID format
     def save(self, *args, **kwargs):
         # Set role based on ID format if not explicitly set
-        if not self.role or self.role not in [choice[0] for choice in self.ROLE_CHOICES]:
-            role_from_id = self.get_role_from_id()
-            if role_from_id:
-                self.role = role_from_id
-        # If this is a new user, ensure department is set
-        if not self.pk:
-            department = self.get_department_from_id()
+        role_from_id = self.get_role_from_id()
+        if role_from_id:
+            print(f"[INFO] Setting role for {self.username} to {role_from_id} based on ID format")
+            self.role = role_from_id
+        else:
+            print(f"[WARNING] Could not determine role from ID for {self.username}")
+        
+        # Call the original save method
         super().save(*args, **kwargs)
+        print(f"[INFO] User {self.username} saved with role {self.role}")
 
 class Student(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile', null=True, blank=True)
     # Use string reference to avoid circular imports during migrations
     department = models.ForeignKey('exams.Department', on_delete=models.CASCADE, null=True, blank=True)
     semester = models.IntegerField(choices=[(i, f'Semester {i}') for i in range(1, 9)])
@@ -121,7 +122,7 @@ class Student(models.Model):
                     print(f"Department not found for code: {dept_code}")
 
 class Teacher(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='teacher_profile')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='teacher_profile', null=True, blank=True)
     # Use string reference to avoid circular imports during migrations
     department = models.ForeignKey('exams.Department', on_delete=models.CASCADE, null=True, blank=True)
     
@@ -148,4 +149,4 @@ class Teacher(models.Model):
                 except Department.DoesNotExist:
                     print(f"Department not found for code: {dept_code}")
 
-# We'll move the signal handler to signals.py
+# Signal handlers are in signals.py
