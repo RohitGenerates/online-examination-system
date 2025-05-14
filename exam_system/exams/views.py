@@ -286,11 +286,17 @@ def take_exam(request, exam_id):
     # Check if exam is currently available (including late submission period)
     now = timezone.now()
     if not exam.is_available(now):
-        return JsonResponse({'error': 'Exam is not currently available'}, status=400)
+        return render(request, 'exams/take_exam.html', {
+            'exam': exam,
+            'error_message': 'This exam is not currently available'
+        })
     
     # Check if student has already taken this exam
     if StudentExamResult.objects.filter(student=student, exam=exam).exists():
-        return JsonResponse({'error': 'You have already taken this exam'}, status=400)
+        return render(request, 'exams/take_exam.html', {
+            'exam': exam,
+            'error_message': 'You have already taken this exam'
+        })
     
     if request.method == 'GET':
         return render(request, 'exams/take_exam.html', {'exam': exam})
@@ -354,12 +360,34 @@ def api_student_exams(request):
         return JsonResponse({'error': 'Not a student'}, status=403)
     student = request.user.student_profile
     now = timezone.now()
-    exams = Exam.objects.filter(
+    
+    # Debug info
+    print(f"[DEBUG] Student ID: {request.user.username}")
+    print(f"[DEBUG] Student Department: {student.department.name if student.department else 'None'}")
+    print(f"[DEBUG] Student Semester: {student.semester}")
+    
+    # First, get all exams for the department and semester without time filter
+    all_dept_exams = Exam.objects.filter(
         department=student.department,
-        semester=student.semester,
-        start_time__lte=now,
-        end_time__gte=now
+        semester=student.semester
     )
+    print(f"[DEBUG] Found {all_dept_exams.count()} exams for this department and semester")
+    for exam in all_dept_exams:
+        print(f"[DEBUG] Exam: {exam.id} - {exam.title} - Start: {exam.start_time} - End: {exam.end_time}")
+    
+    # Get exams with relaxed time filter - commenting out time restrictions temporarily
+    # exams = Exam.objects.filter(
+    #     department=student.department,
+    #     semester=student.semester,
+    #     start_time__lte=now,
+    #     end_time__gte=now
+    # )
+    
+    # TEMPORARY: Get all exams for this department/semester regardless of time
+    exams = all_dept_exams
+    
+    print(f"[DEBUG] Returning {exams.count()} exams after all filters")
+    
     exam_list = [
         {
             'id': exam.id,
@@ -370,6 +398,8 @@ def api_student_exams(request):
             'duration': exam.duration,
             'totalQuestions': getattr(exam, 'total_questions', 0),
             'deadline': exam.end_time.isoformat() if exam.end_time else '',
+            'start_time': exam.start_time.isoformat() if exam.start_time else '',
+            'end_time': exam.end_time.isoformat() if exam.end_time else '',
         }
         for exam in exams
     ]
@@ -632,6 +662,8 @@ def get_question_analysis(request, exam_id):
                 'questionAnalysis': question_analysis
             }
         })
+    except Exam.DoesNotExist:
+        return Response({"success": False, "message": "Exam not found"}, status=404)
     except Exception as e:
         return Response({
             'success': False,
@@ -882,3 +914,121 @@ def get_exam(request, exam_id):
             'success': False,
             'message': str(e)
         }, status=500)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_exam_questions(request, exam_id):
+    """
+    Get all questions for a specific exam
+    Used by the take exam page to load questions
+    """
+    try:
+        # Check if user is a student
+        if not hasattr(request.user, 'student_profile'):
+            return Response({'success': False, 'message': 'Not a student'}, status=403)
+            
+        student = request.user.student_profile
+        exam = Exam.objects.get(pk=exam_id)
+        
+        # Check if student is allowed to take this exam
+        if exam.department != student.department or exam.semester != student.semester:
+            return Response({'success': False, 'message': 'You are not allowed to take this exam'}, status=403)
+        
+        # Get all questions for this exam
+        questions = exam.questions.all()
+        question_list = []
+        for q in questions:
+            question_list.append({
+                "id": q.id,
+                "text": q.text,
+                "options": q.options,
+                "marks": q.marks
+            })
+            
+        return Response({
+            "success": True,
+            "exam": {
+                "id": exam.id,
+                "title": exam.title,
+                "duration": exam.duration,
+                "subject": exam.subject.name,
+                "total_questions": exam.total_questions,
+                "total_marks": exam.total_marks,
+                "passing_score": exam.passing_score
+            },
+            "questions": question_list
+        })
+    except Exam.DoesNotExist:
+        return Response({"success": False, "message": "Exam not found"}, status=404)
+    except Exception as e:
+        return Response({"success": False, "message": str(e)}, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_exam(request):
+    try:
+        # Check if user is a student
+        if not hasattr(request.user, 'student_profile'):
+            return Response({'success': False, 'message': 'Not a student'}, status=403)
+            
+        student = request.user.student_profile
+        data = request.data
+        
+        # Validate required fields
+        if 'exam_id' not in data or 'answers' not in data:
+            return Response({'success': False, 'message': 'Missing required fields'}, status=400)
+        
+        exam_id = data['exam_id']
+        answers = data['answers']
+        
+        try:
+            exam = Exam.objects.get(pk=exam_id)
+        except Exam.DoesNotExist:
+            return Response({'success': False, 'message': 'Exam not found'}, status=404)
+        
+        # Create exam result
+        result = StudentExamResult.objects.create(
+            student=student,
+            exam=exam,
+            status='completed',
+            submitted_at=timezone.now()
+        )
+        
+        # Process answers and calculate score
+        total_marks = 0
+        for answer in answers:
+            question_id = answer['question_id']
+            selected_option = answer['selected_option']
+            
+            try:
+                question = Question.objects.get(pk=question_id)
+                
+                # Check if answer is correct
+                is_correct = selected_option == question.correct_answer
+                if is_correct:
+                    total_marks += question.marks
+                
+                # Save answer
+                ExamAttempt.objects.create(
+                    result=result,
+                    question=question,
+                    selected_option=selected_option,
+                    is_correct=is_correct
+                )
+            except Question.DoesNotExist:
+                continue
+        
+        # Update result with total marks
+        result.obtained_marks = total_marks
+        result.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Exam submitted successfully',
+            'data': {
+                'total_marks': total_marks,
+                'result_id': result.id
+            }
+        })
+    except Exception as e:
+        return Response({'success': False, 'message': str(e)}, status=500)

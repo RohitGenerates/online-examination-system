@@ -91,7 +91,7 @@ $(document).ready(function() {
             url: '/api/exams/subjects/',
             method: 'GET',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token')
+                'X-CSRFToken': getCookie('csrftoken')
             },
             success: function(response) {
                 if (response.success) {

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Take Exam</title>
+    <title>Take Exam - {{ exam.title }}</title>
     <link rel="stylesheet" href="{% static 'css/reset.css' %}">
     <link rel="stylesheet" href="{% static 'css/take-exam.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -12,6 +12,12 @@
 </head>
 <body>
     <div class="exam-container">
+        {% if error_message %}
+        <div class="error-message" style="background-color: #ffebee; color: #c62828; padding: 15px; margin-bottom: 20px; border-radius: 4px; text-align: center;">
+            <i class="fas fa-exclamation-circle"></i> {{ error_message }}
+        </div>
+        {% endif %}
+        
         <!-- Instructions Section -->
         <div id="instructionsSection">
             <div class="exam-header">

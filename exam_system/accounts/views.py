@@ -590,7 +590,8 @@ def student_profile(request):
                 'last_name': request.user.last_name,
                 'email': request.user.email,
                 'phone_number': getattr(request.user, 'phone_number', ''),
-                'department': getattr(student, 'department', ''),
+                'department': student.department.name if student.department else '',
+                'department_id': student.department.id if student.department else None,
                 'semester': getattr(student, 'semester', ''),
                 'username': request.user.username
             }
@@ -614,7 +615,18 @@ def student_profile(request):
 
             # Update StudentProfile model fields
             if 'department' in data:
-                student.department = data['department']
+                from exams.models import Department
+                dept_val = data['department']
+                dept_obj = None
+                if isinstance(dept_val, int):
+                    dept_obj = Department.objects.filter(id=dept_val).first()
+                elif isinstance(dept_val, str):
+                    # Try by code, then by name
+                    dept_obj = Department.objects.filter(code=dept_val).first() or Department.objects.filter(name=dept_val).first()
+                if dept_obj:
+                    student.department = dept_obj
+                else:
+                    return Response({'success': False, 'message': f'Invalid department: {dept_val}'}, status=400)
             if 'semester' in data:
                 student.semester = data['semester']
 
@@ -634,7 +646,8 @@ def student_profile(request):
                     'last_name': user.last_name,
                     'email': user.email,
                     'phone_number': getattr(user, 'phone_number', ''),
-                    'department': student.department,
+                    'department': student.department.name if student.department else '',
+                    'department_id': student.department.id if student.department else None,
                     'semester': student.semester,
                     'username': user.username
                 }

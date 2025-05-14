@@ -14,6 +14,8 @@ urlpatterns = [
     path('exams/', include('exams.urls', namespace='exams_views')),
     
     # API URLs
+    path('api/student/exams', api_student_exams, name='api_student_exams'),
+    path('api/student/results', api_student_results, name='api_student_results'),
     path('api/exams/', include('exams.urls', namespace='exams_api')),
 ]
 
