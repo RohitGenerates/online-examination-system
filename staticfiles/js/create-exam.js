@@ -149,6 +149,11 @@ function loadExamData() {
                 duration: data.data.duration,
                 totalQuestions: data.data.totalQuestions
             };
+            
+            // Make sure the totalQuestions input is updated if it exists
+            if (document.getElementById('totalQuestions')) {
+                document.getElementById('totalQuestions').value = examData.totalQuestions;
+            }
             console.log('Updated exam data:', examData); // Debug log
             
             // Load any saved progress
@@ -357,13 +362,64 @@ function updateProgress() {
         `${currentQuestionIndex + 1} of ${examData.totalQuestions}`;
 }
 
-function finishExamCreation() {
+async function finishExamCreation() {
     // Final save
     saveQuestion();
     
-    // Show completion UI
-    document.querySelector('.exam-creation-container').style.display = 'none';
-    document.getElementById('completionScreen').style.display = 'block';
+    try {
+        // Send questions to the server
+        const response = await fetch(`/api/exams/${examId}/questions/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                questions: examData.questions
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to add questions');
+        }
+
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.message || 'Failed to add questions');
+        }
+
+        // Show success message
+        showToast('Questions added successfully!', 'success');
+        
+        // Show completion UI
+        document.querySelector('.exam-creation-container').style.display = 'none';
+        document.getElementById('completionScreen').style.display = 'block';
+        
+        // Add a button to go back to dashboard
+        const completionScreen = document.getElementById('completionScreen');
+        completionScreen.innerHTML = `
+            <div class="completion-message">
+                <h2><i class="fas fa-check-circle"></i> Exam Created Successfully!</h2>
+                <p>All questions have been added to the exam.</p>
+                <button id="goToDashboardBtn" class="btn primary-btn">
+                    <i class="fas fa-home"></i> Return to Dashboard
+                </button>
+            </div>
+        `;
+        
+        // Add event listener to the new button
+        document.getElementById('goToDashboardBtn').addEventListener('click', function() {
+            window.location.href = '/accounts/teacher/dashboard/';
+        });
+        
+        // Clear local storage
+        localStorage.removeItem(draftKey);
+        
+    } catch (error) {
+        console.error('Error adding questions:', error);
+        showToast('Failed to add questions: ' + error.message, 'error');
+    }
 }
 
 async function createExam() {
@@ -378,12 +434,12 @@ async function createExam() {
                 'X-CSRFToken': getCookie('csrftoken')
             },
             body: JSON.stringify({
-                title: examData.meta.title,
-                subject: (typeof examData.meta.subject === 'object' && examData.meta.subject !== null) ? examData.meta.subject.id : examData.meta.subject,
-                semester: examData.meta.semester,
-                duration: examData.meta.duration,
-                deadline: examData.meta.deadline,
-                totalQuestions: parseInt(document.getElementById('totalQuestions').value, 10)
+                title: examData.title,
+                subject: (typeof examData.subject === 'object' && examData.subject !== null) ? examData.subject.id : examData.subject,
+                semester: examData.semester,
+                duration: examData.duration,
+                deadline: new Date().toISOString(), // Default to now if not available
+                totalQuestions: examData.totalQuestions
             })
         });
 

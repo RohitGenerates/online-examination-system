@@ -107,44 +107,71 @@ def create_exam(request, exam_id=None):
             # Map totalQuestions to total_questions (snake_case for Django model)
             if 'totalQuestions' in data:
                 data['total_questions'] = int(data['totalQuestions'])
-            else:
-                # Default to 5 questions if not specified
-                data['total_questions'] = 5
 
             if not teacher.department:
                 return Response({'success': False, 'message': 'Teacher has no department assigned'}, status=400)
 
-            # Serialize and save
-            serializer = ExamSerializer(data=data)
-            if serializer.is_valid():
-                # Save with created_by and other fields manually
-                exam = serializer.save(
-                    created_by=teacher,
-                    department=teacher.department,
-                    late_submission_end=late_submission_end,
-                    total_questions=int(data.get('totalQuestions', 5))  # Explicitly set total_questions
-                )
-                
-                return Response({
-                    'success': True,
-                    'message': 'Exam created successfully',
-                    'data': {
-                        'exam_id': exam.id
-                    }
-                }, status=status.HTTP_201_CREATED)
+            # Handle updating existing exam
+            if exam_id:
+                try:
+                    exam = Exam.objects.get(id=exam_id, created_by=teacher)
+                    
+                    # Update the exam fields
+                    for attr, value in data.items():
+                        if hasattr(exam, attr):
+                            setattr(exam, attr, value)
+                    
+                    exam.save()
+                    
+                    return Response({
+                        'success': True,
+                        'message': 'Exam updated successfully',
+                        'data': {
+                            'exam_id': exam.id
+                        }
+                    }, status=status.HTTP_200_OK)
+                except Exam.DoesNotExist:
+                    return Response({'success': False, 'message': 'Exam not found'}, status=404)
             else:
-                return Response({
-                    'success': False,
-                    'message': 'Validation failed',
-                    'errors': serializer.errors
-                }, status=status.HTTP_400_BAD_REQUEST)
+                # Create a new exam
+                serializer = ExamSerializer(data=data)
+                if serializer.is_valid():
+                    # Save with created_by and other fields manually
+                    exam = serializer.save(
+                        created_by=teacher,
+                        department=teacher.department,
+                        late_submission_end=late_submission_end
+                    )
+                    
+                    # Set total_questions separately after creation
+                    if hasattr(exam, 'total_questions') and not isinstance(getattr(Exam, 'total_questions', None), property):
+                        exam.total_questions = int(data.get('totalQuestions'))
+                    
+                    exam.status = 'active'
+                    exam.save()
+
+                    return Response({
+                        'success': True,
+                        'message': 'Exam created successfully',
+                        'data': {
+                            'exam_id': exam.id
+                        }
+                    }, status=status.HTTP_201_CREATED)
+                else:
+                    return Response({
+                        'success': False,
+                        'message': 'Validation failed',
+                        'errors': serializer.errors
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
+            # Log the error but print it to console for debugging
             import traceback
-            print(traceback.format_exc())  # Optional debug logging
+            print(f"Error creating exam: {str(e)}")
+            print(traceback.format_exc())
             return Response({
                 'success': False,
-                'message': str(e)
+                'message': f'An error occurred: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 def create_exam_view(request):
@@ -153,6 +180,8 @@ def create_exam_view(request):
         return redirect('login')
     return render(request, 'exams/create_exam.html')
 
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def add_questions_view(request, exam_id):
     """View for rendering the questions form"""
     if not hasattr(request.user, 'teacher_profile'):
@@ -160,7 +189,7 @@ def add_questions_view(request, exam_id):
     
     try:
         exam = Exam.objects.get(id=exam_id, created_by=request.user.teacher_profile)
-        return render(request, 'exams/add_questions.html', {'exam': exam})
+        return render(request, 'exams/manage_exams.html', {'exam': exam})
     except Exam.DoesNotExist:
         messages.error(request, 'Exam not found')
         return redirect('teacher_dashboard')
@@ -180,18 +209,62 @@ def add_questions(request, exam_id):
         if 'questions' not in data:
             return Response({'success': False, 'message': 'No questions provided'}, status=400)
         
-        # Update exam with questions
-        exam.questions = data['questions']
-        exam.save()
-        
-        return Response({
-            'success': True,
-            'message': 'Questions added successfully',
-            'data': {
-                'exam_id': exam.id,
-                'total_questions': len(exam.questions)
-            }
-        })
+        try:
+            # Create question objects from the data
+            question_objects = []
+            for q_data in data['questions']:
+                # Print the question data for debugging
+                print(f"Question data: {q_data}")
+                
+                # Check for required fields
+                if 'text' not in q_data:
+                    return Response({'success': False, 'message': 'Question text is required'}, status=400)
+                if 'options' not in q_data:
+                    return Response({'success': False, 'message': 'Question options are required'}, status=400)
+                
+                # Handle both correct_answer and correctAnswer keys
+                correct_answer = q_data.get('correct_answer', None)
+                if correct_answer is None:
+                    correct_answer = q_data.get('correctAnswer', 'a')  # Try correctAnswer or default to 'a'
+                
+                # Convert None to a default value
+                if correct_answer is None:
+                    correct_answer = 'a'  # Default to option A if not specified
+                
+                question = Question.objects.create(
+                    text=q_data['text'],
+                    options=q_data['options'],
+                    correct_answer=correct_answer,
+                    marks=q_data.get('marks', 1),
+                    created_by=request.user.teacher_profile
+                )
+                question_objects.append(question)
+            
+            # Use set() method for many-to-many relationship
+            exam.questions.set(question_objects)
+            
+            # Save the exam
+            exam.save()
+            
+            # Count questions for the response
+            question_count = len(question_objects)
+            
+            return Response({
+                'success': True,
+                'message': 'Questions added successfully',
+                'data': {
+                    'exam_id': exam.id,
+                    'total_questions': question_count
+                }
+            })
+        except Exception as e:
+            import traceback
+            print(f"Error adding questions: {str(e)}")
+            print(traceback.format_exc())
+            return Response({
+                'success': False,
+                'message': f'Error adding questions: {str(e)}'
+            }, status=500)
     except Exam.DoesNotExist:
         return Response({'success': False, 'message': 'Exam not found'}, status=404)
     except Exception as e:
@@ -377,7 +450,7 @@ def list_exams(request):
         'department_id': exam.department.id,
         'semester': exam.semester,
         'duration': exam.duration,
-        'totalQuestions': len(exam.questions) if hasattr(exam, 'questions') else 0,
+        'totalQuestions': exam.questions.count() if hasattr(exam, 'questions') else 0,
         'deadline': exam.end_time.isoformat() if exam.end_time else None,
         'status': exam.status
     } for exam in exams]
@@ -724,7 +797,14 @@ def get_exam(request, exam_id):
                     'semester': exam.semester,
                     'duration': exam.duration,
                     'totalQuestions': exam.total_questions,
-                    'questions': exam.questions
+                    'questions': [
+                        {
+                            'id': q.id,
+                            'text': q.text,
+                            'marks': q.marks,
+                            'options': q.options
+                        } for q in exam.questions.all()
+                    ]
                 }
             })
         

@@ -1,5 +1,3 @@
-# updated_models.py
-
 from django.db import models
 from accounts.models import User, Student, Teacher
 from datetime import datetime, timedelta
@@ -7,12 +5,17 @@ from django.utils import timezone
 
 class Question(models.Model):
     text = models.TextField()
-    options = models.JSONField()  # Store options as JSON array
-    correct_answer = models.CharField(max_length=1)  # a, b, c, d for MCQ; t/f for True/False
+    options = models.JSONField()  # Will store all available options as a list
+    correct_answer = models.CharField(max_length=1)  # a, b, c, etc. based on option index
     marks = models.PositiveIntegerField(default=1)
+    created_by = models.ForeignKey('accounts.Teacher', on_delete=models.CASCADE, null=True, blank=True)
 
     def __str__(self):
         return f"{self.text[:50]}..."
+
+    def is_true_false(self):
+        """Check if this is effectively a True/False question"""
+        return len(self.options) == 2
 
 class Department(models.Model):
     name = models.CharField(max_length=100)
@@ -54,17 +57,18 @@ class Exam(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     semester = models.IntegerField(choices=[(i, f'Semester {i}') for i in range(1, 9)])
     duration = models.IntegerField(help_text="Duration in minutes")
-    total_questions = models.IntegerField(default=0)
     passing_score = models.IntegerField()
     start_time = models.DateTimeField(null=True, blank=True)
     end_time = models.DateTimeField(null=True, blank=True)
     late_submission_end = models.DateTimeField(null=True, blank=True)
-    created_by = models.ForeignKey('accounts.Teacher', on_delete=models.CASCADE)
+    created_by = models.ForeignKey('accounts.Teacher', on_delete=models.CASCADE, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    questions = models.JSONField(default=list)
+    questions = models.ManyToManyField(Question)
+    total_questions = models.IntegerField(default=0)
+    total_marks = models.IntegerField(default=0)
     status = models.CharField(
         max_length=20,
-        choices=[
+        choices=[   
             ('draft', 'Draft'),
             ('active', 'Active'),
             ('completed', 'Completed'),
@@ -73,11 +77,23 @@ class Exam(models.Model):
         default='draft'
     )
 
+    class Meta:
+        ordering = ['-created_at']
+
     def __str__(self):
         return f"{self.title} - {self.subject} - Semester {self.semester}"
 
-    def is_available(self, current_time):
+    # @property
+    # def total_questions(self):
+    #     return self.questions.count()
+
+    # @property
+    # def total_marks(self):
+    #     return sum(question.marks for question in self.questions.all())
+
+    def is_available(self, current_time=None):
         """Check if exam is currently available"""
+        current_time = current_time or timezone.now()
         return self.start_time <= current_time <= self.late_submission_end
 
     def is_late_submission(self, submission_time):
@@ -150,3 +166,16 @@ class ExamAttempt(models.Model):
         self.end_time = timezone.now()
         self.status = 'abandoned'
         self.save()
+
+# dont know yet if to add this or not
+# class ExamQuestion(models.Model):
+#     exam = models.ForeignKey(Exam, on_delete=models.CASCADE)
+#     question = models.ForeignKey(Question, on_delete=models.CASCADE)
+#     order = models.PositiveIntegerField(default=0)
+
+#     class Meta:
+#         ordering = ['order']
+#         unique_together = ('exam', 'question')
+
+#     def __str__(self):
+#         return f"{self.exam.title} - Q{self.order}"

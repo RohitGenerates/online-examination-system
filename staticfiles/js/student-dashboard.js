@@ -82,10 +82,9 @@ $(document).ready(function() {
         $("#dynamicContentContainer").hide().html(examListHTML).slideDown(300);
         
         // Fetch real exams from the database
-        fetch('api/available-exams/', {
+        fetch('/api/student/exams', {
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token'),
-                'X-CSRFToken': getCookie('csrftoken')
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
             }
         })
         .then(response => {
@@ -141,7 +140,7 @@ $(document).ready(function() {
         $(".start-exam-btn").click(function(e) {
             e.stopPropagation();
             var examId = $(this).closest(".exam-tile").data("exam-id");
-            console.log("Starting exam #" + examId);
+            window.location.href = `/exams/take/${examId}/`;
         });
         
         $("#subjectFilter").change(function() {

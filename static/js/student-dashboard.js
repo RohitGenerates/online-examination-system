@@ -140,7 +140,7 @@ $(document).ready(function() {
         $(".start-exam-btn").click(function(e) {
             e.stopPropagation();
             var examId = $(this).closest(".exam-tile").data("exam-id");
-            console.log("Starting exam #" + examId);
+            window.location.href = `/exams/take/${examId}/`;
         });
         
         $("#subjectFilter").change(function() {

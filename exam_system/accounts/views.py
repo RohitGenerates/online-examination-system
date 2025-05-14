@@ -183,14 +183,26 @@ def teacher_details(request):
 
 def login_view(request):
     if request.method == 'POST':
-        username = request.POST.get('username')
+        # Get form data
+        input_identifier = request.POST.get('username')  # This could be either email or username
         password = request.POST.get('password')
         user_type = request.POST.get('userType')
 
         # Debug output to help diagnose issues
-        print(f"Login attempt - Username: {username}, User Type: {user_type}")
-
-        user = authenticate(request, username=username, password=password)
+        print(f"Login attempt - Input identifier: {input_identifier}, User Type: {user_type}")
+        
+        # Determine if input is email or username
+        is_email = '@' in input_identifier if input_identifier else False
+        
+        # Try to authenticate with either username or email
+        if is_email:
+            user = authenticate(request, email=input_identifier, password=password)
+            if user is None:  # If email auth fails, try username just in case
+                user = authenticate(request, username=input_identifier, password=password)
+        else:
+            user = authenticate(request, username=input_identifier, password=password)
+            if user is None:  # If username auth fails, try email just in case
+                user = authenticate(request, email=input_identifier, password=password)
 
         if user is not None:
             # Check if the user account is active
@@ -201,7 +213,7 @@ def login_view(request):
                 messages.error(request, error_msg)
                 return render(request, 'accounts/login.html')
 
-            # Get user's actual role based on the model structure and ID format
+            # Get user's actual role based on the model structure
             actual_role = user.role  # Use the role field from the User model
 
             # Convert user_type to lowercase for comparison, or use a default value
@@ -219,6 +231,7 @@ def login_view(request):
                     return JsonResponse({'success': False, 'error': error_msg}, status=400)
                 messages.error(request, error_msg)
                 return render(request, 'accounts/login.html')
+            
             login(request, user)
 
             # Determine redirect URL based on user type
@@ -275,6 +288,7 @@ def login_view(request):
                 return JsonResponse({'success': False, 'error': error_msg}, status=400)
             messages.error(request, error_msg)
             return render(request, 'accounts/login.html')
+
     return render(request, 'accounts/login.html')
 
 @login_required
