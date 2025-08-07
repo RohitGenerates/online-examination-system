@@ -13,6 +13,8 @@ urlpatterns = [
     
     # View URLs (non-API)
     path('exams/', include((view_patterns, 'exams'))),  # Regular views under /exams/
+    # API URLs (add this line)
+    path('exams/', include('exams.urls')),  # Include API endpoints under /exams/
     
     # API URLs - include all exam API endpoints under /api/exams/
     path('api/exams/', include('exams.urls_api')),
