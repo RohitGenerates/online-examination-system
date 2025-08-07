@@ -174,8 +174,6 @@ Follow these instructions to set up the project locally for development and test
     ```
     The application will be available at `http://127.0.0.1:8000`.
 
-<pre> ## Project Structure ```text exam_system/ ├── accounts/ # App for user management, authentication, and profiles │ ├── models.py │ ├── views.py │ ├── urls.py │ └── templates/ ├── exams/ # App for exam/question creation and result management │ ├── models.py │ ├── views.py │ ├── urls.py │ └── templates/ ├── templates/ # Global base templates with navigation and footer ├── static/ # Global static files (CSS, JS, images) └── exam_system/ # Main Django project configuration ├── settings.py ├── urls.py └── wsgi.py ``` </pre>
-
 ## Key Learnings & Technical Challenges
 
 This project provided invaluable hands-on experience and presented several technical challenges that were successfully overcome:
