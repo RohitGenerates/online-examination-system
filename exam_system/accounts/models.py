@@ -30,11 +30,11 @@ class User(AbstractUser):
         unique=True,
         validators=[
             RegexValidator(
-                regex=r'^(admin\d{3}|[0-8]mp23(cg|cs|is|ml|ds)\d{3})$',
+                regex=r'^(admin\d{3}|[0-8]mp\d{2}(cg|cs|is|ml|ds)\d{3})$',
                 message='Invalid ID format. Must be like: 1mp23cs001 for students, 0mp23cs001 for teachers, or admin001 for admin'
             )
         ],
-        help_text='ID format: [0-8]mp23[dept_code][3 digits] for students/teachers, or admin[3 digits] for admin'
+        help_text='ID format: [0-8]mp[year][dept_code][3 digits] for students/teachers, or admin[3 digits] for admin'
     )
     
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')

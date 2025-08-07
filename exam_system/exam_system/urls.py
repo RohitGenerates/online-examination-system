@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from accounts.views import root_view
 from exams.views import api_student_exams, api_student_results
+from exams.urls import view_patterns
 
 urlpatterns = [
     path('', root_view, name='root'),
@@ -11,12 +12,14 @@ urlpatterns = [
     path('accounts/', include('accounts.urls')),
     
     # View URLs (non-API)
-    path('exams/', include('exams.urls', namespace='exams_views')),
+    path('exams/', include((view_patterns, 'exams'))),  # Regular views under /exams/
     
-    # API URLs
+    # API URLs - include all exam API endpoints under /api/exams/
+    path('api/exams/', include('exams.urls_api')),
+    
+    # Additional API endpoints
     path('api/student/exams', api_student_exams, name='api_student_exams'),
     path('api/student/results', api_student_results, name='api_student_results'),
-    path('api/exams/', include('exams.urls', namespace='exams_api')),
 ]
 
 # Serve static files in development

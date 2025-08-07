@@ -44,12 +44,12 @@ def signup(request):
             is_admin = user_id.startswith('admin')
             is_student_id = (
                 user_id[0] in '12345678' and
-                user_id[1:5] == 'mp23' and
+                user_id[1:3] == 'mp' and
                 user_id[5:7] in ['cg', 'cs', 'is', 'ml', 'ds']
             )
             is_teacher_id = (
                 user_id[0] == '0' and
-                user_id[1:5] == 'mp23' and
+                user_id[1:3] == 'mp' and
                 user_id[5:7] in ['cg', 'cs', 'is', 'ml', 'ds']
             )
             
@@ -673,7 +673,7 @@ def teacher_profile(request):
                 'last_name': user.last_name,
                 'email': user.email,
                 'phone_number': getattr(user, 'phone_number', ''),
-                'department': teacher.department,
+                'department': str(teacher.department) if teacher.department else None,
                 'username': user.username
             }
         }
@@ -689,9 +689,16 @@ def teacher_profile(request):
             user.phone_number = data.get('phone_number', user.phone_number)
             user.save()
 
-            # Update teacher profile fields
-            teacher.department = data.get('department', teacher.department)
-            teacher.save()
+            # Update teacher profile fields - department is read-only since it's determined by ID
+            # teacher.department should be set based on the teacher's ID
+            dept_code = user.username[5:7]
+            try:
+                from exams.models import Department
+                department = Department.objects.get(code=dept_code)
+                teacher.department = department
+                teacher.save()
+            except Department.DoesNotExist:
+                print(f"Department not found for code: {dept_code}")
 
             return Response({
                 'success': True,
@@ -700,7 +707,7 @@ def teacher_profile(request):
                     'last_name': user.last_name,
                     'email': user.email,
                     'phone_number': user.phone_number,
-                    'department': teacher.department,
+                    'department': str(teacher.department) if teacher.department else None,
                     'username': user.username
                 }
             })

@@ -1,274 +1,142 @@
 $(document).ready(function() {
-    let currentQuestion = 0;
-    let answers = [];
-    let timeLeft = 0; // Will be set from exam data
-    let timerInterval;
-    let questions = [];
-    let examId = getExamIdFromUrl();
-    let examData = {};
+    // Show instructions first, hide exam content
+    $("#examContent").hide();
+    $("#instructionsSection").show();
 
-    // Get exam ID from URL
-    function getExamIdFromUrl() {
-        // First try to get from query parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const examIdFromQuery = urlParams.get('exam_id');
-        if (examIdFromQuery) return examIdFromQuery;
-        
-        // If not in query, extract from path
-        const pathParts = window.location.pathname.split('/');
-        // Path format: /exams/take/123/
-        for (let i = 0; i < pathParts.length; i++) {
-            if (pathParts[i] === 'take' && i + 1 < pathParts.length) {
-                return pathParts[i + 1];
-            }
-        }
-        return null;
-    }
-
-    // Start exam button handler
+    // Start Exam button logic
     $("#startExamBtn").click(function() {
         $("#instructionsSection").fadeOut(300, function() {
-            $("#examSection").fadeIn(300);
-            initExam();
+            $("#examContent").fadeIn(300);
+            initializeExam();
         });
     });
 
-    // Load exam data when page loads
-    loadExamData();
+    // Exam data structure
+    let answers = {};
+    let timerInterval;
+    let examData = {
+        id: null,
+        title: $('#examContent h2').text().trim(),
+        timeRemaining: window.REMAINING_TIME || 0
+    };
 
-    // Fetch exam data from API
-    function loadExamData() {
-        if (!examId) {
-            showError("No exam ID provided");
-            return;
-        }
-
-        fetch(`/api/exams/${examId}/questions/`, {
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                examData = data.exam;
-                questions = data.questions;
-                
-                // Update exam info in the UI
-                updateExamInfo(examData);
-            } else {
-                showError(data.message || "Failed to load exam data");
-            }
-        })
-        .catch(error => {
-            console.error("Error loading exam:", error);
-            showError("Failed to load exam data. Please try again.");
-        });
-    }
-
-    // Update exam info in the UI
-    function updateExamInfo(exam) {
-        $("#examSection h1").text(exam.title);
-        $("#totalQuestionsInfo").text(exam.total_questions);
-        $("#totalQuestions").text(exam.total_questions);
-        $(".exam-info p:nth-child(1)").html(`<i class="fas fa-clock"></i> Duration: ${exam.duration} minutes`);
-        $(".exam-info p:nth-child(3)").html(`<i class="fas fa-book"></i> Subject: ${exam.subject}`);
+    // Initialize exam with server-provided data
+    function initializeExam() {
+        // Use the server-provided remaining time
+        examData.timeRemaining = window.REMAINING_TIME || 0;
         
-        // Set timer duration
-        timeLeft = exam.duration * 60; // Convert minutes to seconds
-    }
-
-    // Show error message
-    function showError(message) {
-        alert(message);
-    }
-
-    // Initialize exam
-    function initExam() {
-        if (questions.length === 0) {
-            showError("No questions available for this exam");
-            return;
-        }
-
-        loadQuestion(0);
-        initQuestionDots();
-        updateNavButtons();
+        // Start timer
         startTimer();
-    }
-
-    // Load question
-    function loadQuestion(index) {
-        const question = questions[index];
-        $("#currentQuestionNum").text(index + 1);
-        $("#questionContent").html(question.text);
         
-        let optionsHTML = '';
-        question.options.forEach((option, i) => {
-            optionsHTML += `
-                <div class="option ${answers[index] === i ? 'selected' : ''}" data-index="${i}">
-                    ${option}
-                </div>
-            `;
-        });
-        $("#optionsContainer").html(optionsHTML);
-    }
-
-    // Handle option selection
-    $(document).on('click', '.option', function() {
-        const optionIndex = $(this).data('index');
-        answers[currentQuestion] = optionIndex;
+        // Load saved progress
+        loadProgress();
         
-        // Update UI
-        $('.option').removeClass('selected');
-        $(this).addClass('selected');
-        updateQuestionDots();
-    });
-
-    // Initialize question dots
-    function initQuestionDots() {
-        let dotsHTML = '';
-        for (let i = 0; i < questions.length; i++) {
-            dotsHTML += `<div class="question-dot" data-index="${i}"></div>`;
-        }
-        $("#questionDots").html(dotsHTML);
-        updateQuestionDots();
-    }
-
-    // Update question dots
-    function updateQuestionDots() {
-        $(".question-dot").removeClass("current answered");
-        $(".question-dot").each(function(index) {
-            if (index === currentQuestion) {
-                $(this).addClass("current");
-            }
-            if (answers[index] !== undefined) {
-                $(this).addClass("answered");
-            }
+        // Set up answer change listeners
+        $("input[type='radio']").change(function() {
+            const questionId = $(this).attr('name');
+            const selectedOption = $(this).val();
+            answers[questionId] = selectedOption;
+            saveProgress();
         });
     }
 
-    // Navigation buttons
-    $("#prevBtn").click(function() {
-        if (currentQuestion > 0) {
-            currentQuestion--;
-            loadQuestion(currentQuestion);
-            updateQuestionDots();
-            updateNavButtons();
-        }
-    });
-
-    $("#nextBtn").click(function() {
-        if (currentQuestion < questions.length - 1) {
-            currentQuestion++;
-            loadQuestion(currentQuestion);
-            updateQuestionDots();
-            updateNavButtons();
-        } else {
-            // On last question, next becomes submit
-            confirmSubmit();
-        }
-    });
-
-    // Question dot navigation
-    $(document).on('click', '.question-dot', function() {
-        const index = $(this).data('index');
-        currentQuestion = index;
-        loadQuestion(currentQuestion);
-        updateQuestionDots();
-        updateNavButtons();
-    });
-
-    // Update navigation buttons
-    function updateNavButtons() {
-        $("#prevBtn").prop("disabled", currentQuestion === 0);
-        
-        if (currentQuestion === questions.length - 1) {
-            $("#nextBtn").html('<i class="fas fa-check"></i> Submit');
-        } else {
-            $("#nextBtn").html('Next <i class="fas fa-arrow-right"></i>');
-        }
-    }
-
-    // Start timer
+    // Timer functions
     function startTimer() {
         updateTimerDisplay();
         timerInterval = setInterval(function() {
-            timeLeft--;
+            examData.timeRemaining--;
             updateTimerDisplay();
             
-            if (timeLeft <= 0) {
+            if (examData.timeRemaining <= 0) {
                 clearInterval(timerInterval);
-                alert("Time's up! Your exam will be submitted.");
+                showToast("Time's up! Your exam will be submitted.", "warning");
                 submitExam();
             }
         }, 1000);
     }
 
-    // Update timer display
     function updateTimerDisplay() {
-        const minutes = Math.floor(timeLeft / 60);
-        const seconds = timeLeft % 60;
+        const minutes = Math.floor(examData.timeRemaining / 60);
+        const seconds = examData.timeRemaining % 60;
         $("#timer").text(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        
+        // Add warning class when less than 5 minutes remaining
+        if (examData.timeRemaining <= 300) {
+            $("#timer").addClass("warning");
+        }
     }
 
-    // Confirm submit
-    function confirmSubmit() {
-        const unanswered = questions.length - answers.filter(a => a !== undefined).length;
-        if (unanswered > 0) {
-            if (confirm(`You have ${unanswered} unanswered questions. Are you sure you want to submit?`)) {
-                submitExam();
-            }
-        } else {
-            if (confirm("Are you sure you want to submit your exam?")) {
-                submitExam();
+    // Progress saving/loading
+    function saveProgress() {
+        localStorage.setItem(`exam_answers`, JSON.stringify(answers));
+    }
+
+    function loadProgress() {
+        const savedAnswers = localStorage.getItem(`exam_answers`);
+        if (savedAnswers) {
+            answers = JSON.parse(savedAnswers);
+            // Set the checked state for saved answers
+            for (const [name, value] of Object.entries(answers)) {
+                $(`input[name="${name}"][value="${value}"]`).prop('checked', true);
             }
         }
     }
 
-    // Submit exam
-    function submitExam() {
-        clearInterval(timerInterval);
+    // Form submission
+    $("#exam-form").on("submit", function(e) {
+        // Check for unanswered questions
+        const totalQuestions = $('.question-container').length;
+        const answeredQuestions = Object.keys(answers).length;
         
-        // Prepare submission data
-        const submission = {
-            exam_id: examId,
-            answers: answers.map((answer, index) => ({
-                question_id: questions[index].id,
-                selected_option: answer
-            }))
-        };
-        
-        // Send to server
-        fetch('/api/exams/submit/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify(submission)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert("Exam submitted successfully!");
-                window.location.href = '/accounts/student/dashboard/';
-            } else {
-                alert(data.message || "Failed to submit exam");
+        if (answeredQuestions < totalQuestions) {
+            if (!confirm(`You have ${totalQuestions - answeredQuestions} unanswered questions. Are you sure you want to submit?`)) {
+                e.preventDefault();
+                return false;
             }
-        })
-        .catch(error => {
-            console.error("Error submitting exam:", error);
-            alert("Failed to submit exam. Please try again.");
-        });
+        }
+        
+        // Clear saved answers on successful submit
+        localStorage.removeItem('exam_answers');
+        return true;
+    });
+
+    // Submit exam function
+    function submitExam() {
+        // Auto-submit the form when time runs out
+        $("#exam-form").submit();
     }
 
-    // Get CSRF token from cookies
+    // Toast notification
+    function showToast(message, type = 'success') {
+        // Remove existing toasts
+        $(".toast").remove();
+        
+        // Create new toast
+        const toast = $("<div>").addClass(`toast ${type}`);
+        
+        // Add icon based on type
+        const iconMap = {
+            success: 'fa-check-circle',
+            error: 'fa-exclamation-circle',
+            info: 'fa-info-circle',
+            warning: 'fa-exclamation-triangle'
+        };
+        
+        toast.html(`
+            <i class="fas ${iconMap[type] || 'fa-check-circle'}"></i>
+            <span>${message}</span>
+        `);
+        
+        $("body").append(toast);
+        
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
+            toast.css("animation", "toastFadeOut 0.5s ease forwards");
+            toast.on("animationend", () => toast.remove());
+        }, 3000);
+    }
+
+    // Utility function to get CSRF token
     function getCookie(name) {
         let cookieValue = null;
         if (document.cookie && document.cookie !== '') {

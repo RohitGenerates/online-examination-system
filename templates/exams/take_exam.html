@@ -4,75 +4,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Take Exam - {{ exam.title }}</title>
+    <title>Take Exam: {{ exam.title }}</title>
     <link rel="stylesheet" href="{% static 'css/reset.css' %}">
     <link rel="stylesheet" href="{% static 'css/take-exam.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
-    <div class="exam-container">
-        {% if error_message %}
-        <div class="error-message" style="background-color: #ffebee; color: #c62828; padding: 15px; margin-bottom: 20px; border-radius: 4px; text-align: center;">
-            <i class="fas fa-exclamation-circle"></i> {{ error_message }}
-        </div>
-        {% endif %}
-        
-        <!-- Instructions Section -->
-        <div id="instructionsSection">
-            <div class="exam-header">
-                <h1>Exam Instructions</h1>
-            </div>
-            <div class="instructions-content">
-                <div class="exam-info">
-                    <h2>Exam Details</h2>
-                    <p><i class="fas fa-clock"></i> Duration: 60 minutes</p>
-                    <p><i class="fas fa-question-circle"></i> Questions: <span id="totalQuestionsInfo">10</span></p>
-                    <p><i class="fas fa-book"></i> Subject: Computer Science</p>
-                </div>
-                <div class="rules-list">
-                    <h2>Important Rules</h2>
-                    <ul>
-                        <li>Timer starts when you begin the exam</li>
-                        <li>Answer all questions before submitting</li>
-                        <li>Cannot return after submission</li>
-                        <li>Auto-submits when timer ends</li>
-                        <li>Marks will be cut for Late Submission</li>
-                    </ul>
-                </div>
-                <button id="startExamBtn" class="start-btn">Start Exam</button>
-            </div>
-        </div>
-
-        <!-- Exam Section -->
-        <div id="examSection" style="display: none;">
-            <div class="exam-header">
-                <h1>Exam Title</h1>
-                <div class="timer" id="timer">60:00</div>
-            </div>
-
-            <div class="question-container">
-                <div class="question-number">Question <span id="currentQuestionNum">1</span> of <span id="totalQuestions">10</span></div>
-                <div class="question-content" id="questionContent">
-                    <!-- Question will be loaded here dynamically -->
-                </div>
-                <div class="options-container" id="optionsContainer">
-                    <!-- Options will be loaded here dynamically -->
-                </div>
-            </div>
-
-            <div class="navigation-controls">
-                <button id="prevBtn" class="nav-btn"><i class="fas fa-arrow-left"></i> Previous</button>
-                <div class="question-dots" id="questionDots">
-                    <!-- Question dots will be generated dynamically -->
-                </div>
-                <button id="nextBtn" class="nav-btn">Next <i class="fas fa-arrow-right"></i></button>
-            </div>
-
-            <button id="submitExam" class="submit-btn">Submit Exam</button>
-        </div>
+    <div id="instructionsSection" class="instructions-section">
+        <h2>Exam Instructions</h2>
+        <ul>
+            <li>Read all questions carefully.</li>
+            <li>Once you start, the timer will begin.</li>
+            <li>You cannot pause or restart the exam.</li>
+            <li>Click "Start Exam" when you are ready.</li>
+            {% if exam.instructions %}
+            <li>{{ exam.instructions }}</li>
+            {% endif %}
+        </ul>
+        <button id="startExamBtn" class="btn primary-btn">
+            <i class="fas fa-play"></i> Start Exam
+        </button>
     </div>
-
+    <div class="exam-container" id="examContent" data-exam-id="{{ exam.id }}" style="display:none;">
+        <div class="exam-header">
+            <div>
+                <h2>{{ exam.title }}</h2>
+                <p>Subject: {{ exam.subject.name }}</p>
+            </div>
+            <div class="timer" id="timer" data-remaining="{{ remaining_time|default:"0" }}"></div>
+        </div>
+        <form id="exam-form" method="post">
+            {% csrf_token %}
+            <ol class="questions-list">
+                {% for question in questions %}
+                    <li class="question-container">
+                        <div class="question-content">{{ question.text }}</div>
+                        <div class="options-container">
+                            {% if question.question_type == 'mcq' %}
+                                <label class="option">
+                                    <input type="radio" name="question_{{ question.id }}" value="a" required>
+                                    {{ question.option_a }}
+                                </label>
+                                <label class="option">
+                                    <input type="radio" name="question_{{ question.id }}" value="b">
+                                    {{ question.option_b }}
+                                </label>
+                                <label class="option">
+                                    <input type="radio" name="question_{{ question.id }}" value="c">
+                                    {{ question.option_c }}
+                                </label>
+                                <label class="option">
+                                    <input type="radio" name="question_{{ question.id }}" value="d">
+                                    {{ question.option_d }}
+                                </label>
+                            {% else %}
+                                <label class="option">
+                                    <input type="radio" name="question_{{ question.id }}" value="t" required>
+                                    True
+                                </label>
+                                <label class="option">
+                                    <input type="radio" name="question_{{ question.id }}" value="f">
+                                    False
+                                </label>
+                            {% endif %}
+                        </div>
+                    </li>
+                {% empty %}
+                    <li>No questions available for this exam.</li>
+                {% endfor %}
+            </ol>
+            <button type="submit" class="submit-btn">Submit Exam</button>
+        </form>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="{% static 'js/take-exam.js' %}"></script>
 </body>
 </html>

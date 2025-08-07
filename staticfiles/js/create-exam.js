@@ -1,5 +1,7 @@
 // Get exam ID from URL path instead of query parameters
-const examId = window.location.pathname.split('/').filter(Boolean).pop();
+const pathParts = window.location.pathname.split('/').filter(Boolean);
+const examId = pathParts[pathParts.indexOf('exams') + 2] || null;
+console.log('Exam ID from URL:', examId); // Debug log
 
 // Exam data structure with enhanced storage capabilities
 let examData = {
@@ -22,7 +24,9 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Loading exam data for ID:', examId); // Debug log
     
     // Load exam data from server first
-    loadExamData();
+    if (examId) {
+        loadExamData();
+    }
     
     // Setup event listeners
     document.getElementById('prevQuestion').addEventListener('click', prevQuestion);
@@ -287,22 +291,37 @@ function initializeQuestion() {
 }
 
 function saveQuestion() {
-    const question = {
-        text: document.getElementById('questionText').value,
-        options: {},
-        correctAnswer: null
-    };
-
-    // Get all options
+    const questionText = document.getElementById('questionText').value;
+    let correctAnswer = null;
+    const optionsData = {};
+    
+    // Get all options and find the correct one
     document.querySelectorAll('.answer-option').forEach((option, index) => {
         const letter = String.fromCharCode(65 + index);
-        question.options[letter] = option.querySelector('.option-input').value;
+        optionsData[letter] = option.querySelector('.option-input').value;
         
         // Check if this is the correct answer
         if (option.classList.contains('selected')) {
-            question.correctAnswer = letter;
+            correctAnswer = letter;
         }
     });
+
+    // Validate question data
+    if (!questionText.trim()) {
+        showToast('Question text is required', 'error');
+        return;
+    }
+    if (!correctAnswer) {
+        showToast('Please select a correct answer', 'error');
+        return;
+    }
+
+    const question = {
+        text: questionText,
+        options: optionsData,
+        correct_answer: correctAnswer,  // Changed from correctAnswer to correct_answer
+        marks: 1  // Default marks
+    };
 
     // Update or add question
     examData.questions[currentQuestionIndex] = question;
@@ -367,24 +386,42 @@ async function finishExamCreation() {
     saveQuestion();
     
     try {
-        // Send questions to the server
-        const response = await fetch(`/api/exams/${examId}/questions/`, {
+        if (!examId) {
+            throw new Error('No exam ID available. Please create the exam first.');
+        }
+
+        console.log('Sending questions to:', `/api/exams/${examId}/add-questions/`);
+        console.log('Questions data:', examData.questions);
+
+        // Send questions to the server using the correct endpoint
+        const response = await fetch(`/api/exams/${examId}/add-questions/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCookie('csrftoken')
             },
             body: JSON.stringify({
-                questions: examData.questions
+                questions: examData.questions.map(q => ({
+                    text: q.text,
+                    options: q.options,
+                    correct_answer: q.correct_answer,
+                    marks: q.marks || 1
+                }))
             })
         });
 
+        console.log('Response status:', response.status);
+        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
             const errorData = await response.json();
+            console.error('Error response:', errorData);
             throw new Error(errorData.message || 'Failed to add questions');
         }
 
         const result = await response.json();
+        console.log('Success response:', result);
+        
         if (!result.success) {
             throw new Error(result.message || 'Failed to add questions');
         }
@@ -423,88 +460,100 @@ async function finishExamCreation() {
 }
 
 async function createExam() {
-    saveQuestion(); // Save the last question
-    
     try {
-        // Send exam data to server
+        // Check if we're on the question creation page
+        if (examId) {
+            // We're on the question creation page, so finish the exam creation
+            await finishExamCreation();
+            return;
+        }
+
+        // We're on the initial exam creation page
+        const examTitle = document.getElementById('examTitle');
+        const subject = document.getElementById('subject');
+        const semester = document.getElementById('semester');
+        const duration = document.getElementById('duration');
+        const deadline = document.getElementById('deadline');
+        const totalQuestions = document.getElementById('totalQuestions');
+
+        // Validate that all elements exist
+        if (!examTitle || !subject || !semester || !duration || !deadline || !totalQuestions) {
+            console.error('Required form elements not found:', {
+                examTitle: !!examTitle,
+                subject: !!subject,
+                semester: !!semester,
+                duration: !!duration,
+                deadline: !!deadline,
+                totalQuestions: !!totalQuestions
+            });
+            showToast('Form elements not found. Please refresh the page.', 'error');
+            return;
+        }
+
+        const examData = {
+            title: examTitle.value.trim(),
+            subject: subject.value,
+            semester: semester.value,
+            duration: parseInt(duration.value),
+            deadline: new Date(deadline.value).toISOString(),
+            totalQuestions: parseInt(totalQuestions.value)
+        };
+        
+        // Validate inputs
+        if (!examData.title || !examData.subject || !examData.semester || !examData.duration || !examData.deadline || !examData.totalQuestions) {
+            showToast("Please fill in all fields", "error");
+            return;
+        }
+
+        // Validate numeric fields
+        if (isNaN(examData.duration) || examData.duration <= 0) {
+            showToast("Duration must be a positive number", "error");
+            return;
+        }
+        if (isNaN(examData.totalQuestions) || examData.totalQuestions <= 0) {
+            showToast("Total questions must be a positive number", "error");
+            return;
+        }
+        
+        // Show loading state
+        const submitBtn = document.getElementById('createExamBtn');
+        const originalBtnText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+        
+        console.log('Sending exam data:', examData);
+        
+        // Make API call to create exam
         const response = await fetch('/api/exams/create/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCookie('csrftoken')
             },
-            body: JSON.stringify({
-                title: examData.title,
-                subject: (typeof examData.subject === 'object' && examData.subject !== null) ? examData.subject.id : examData.subject,
-                semester: examData.semester,
-                duration: examData.duration,
-                deadline: new Date().toISOString(), // Default to now if not available
-                totalQuestions: examData.totalQuestions
-            })
+            body: JSON.stringify(examData)
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to create exam');
+        const data = await response.json();
+        console.log('Create exam response:', data);
+
+        if (data.success) {
+            showToast('Exam created successfully!', 'success');
+            // Store the exam ID in localStorage for the next page
+            localStorage.setItem('currentExamId', data.data.exam_id);
+            // Redirect to the add questions page
+            window.location.href = `/exams/create/${data.data.exam_id}/`;
+        } else {
+            throw new Error(data.message || 'Failed to create exam');
         }
-
-        const result = await response.json();
-        if (!result.success) {
-            throw new Error(result.message || 'Failed to create exam');
-        }
-
-        const examId = result.data.exam_id;
-        
-        // Now add the questions to the exam
-        const questionsResponse = await fetch(`/api/exams/${examId}/questions/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({
-                questions: examData.questions
-            })
-        });
-
-        if (!questionsResponse.ok) {
-            const errorData = await questionsResponse.json();
-            throw new Error(errorData.message || 'Failed to add questions');
-        }
-
-        const questionsResult = await questionsResponse.json();
-        if (!questionsResult.success) {
-            throw new Error(questionsResult.message || 'Failed to add questions');
-        }
-
-        // Show success message with deadlines
-        const endTime = new Date(result.data.end_time);
-        const lateDeadline = new Date(result.data.late_submission_end);
-        
-        showToast(
-            `Exam created successfully! Regular deadline: ${endTime.toLocaleString()}\nLate submissions until: ${lateDeadline.toLocaleString()}`,
-            'success'
-        );
-
-        // Show success modal
-        document.getElementById('successModal').style.display = 'flex';
-        document.querySelector('.exam-creation-container').style.display = 'none';
-        
-        // Clear client-side storage
-        clearExamData();
-        
-        // Explicitly redirect to dashboard after short delay
-        setTimeout(function() {
-            window.location.href = '/accounts/teacher/dashboard/';
-        }, 1200);
     } catch (error) {
         console.error('Error creating exam:', error);
-        showToast('Failed to create exam: ' + error.message, 'error');
-        
-        // Enable retry button
-        document.getElementById('createExamBtn').disabled = false;
-        document.getElementById('createExamBtn').innerHTML = 
-            '<i class="fas fa-redo"></i> Try Again';
+        showToast(error.message || 'Error creating exam', 'error');
+        // Reset button state
+        const submitBtn = document.getElementById('createExamBtn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Create Exam & Add Questions';
+        }
     }
 }
 
