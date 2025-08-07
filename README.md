@@ -192,9 +192,9 @@ exam_system/
 ├── templates/           # Global base templates with navigation and footer
 ├── static/              # Global static files (CSS, JS, images)
 └── exam_system/         # Main Django project configuration
-├── settings.py
-├── urls.py
-└── wsgi.py
+    ├── settings.py
+    ├── urls.py
+    └── wsgi.py
 
 ---
 
