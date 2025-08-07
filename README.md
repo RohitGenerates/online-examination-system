@@ -178,23 +178,7 @@ Follow these instructions to set up the project locally for development and test
 
 ## Project Structure
 
-exam_system/
-├── accounts/            # App for user management, authentication, and profiles
-│   ├── models.py
-│   ├── views.py
-│   ├── urls.py
-│   └── templates/
-├── exams/               # App for exam/question creation and result management
-│   ├── models.py
-│   ├── views.py
-│   ├── urls.py
-│   └── templates/
-├── templates/           # Global base templates with navigation and footer
-├── static/              # Global static files (CSS, JS, images)
-└── exam_system/         # Main Django project configuration
-    ├── settings.py
-    ├── urls.py
-    └── wsgi.py
+<pre> ```text exam_system/ ├── accounts/ # App for user management, authentication, and profiles │ ├── models.py │ ├── views.py │ ├── urls.py │ └── templates/ ├── exams/ # App for exam/question creation and result management │ ├── models.py │ ├── views.py │ ├── urls.py │ └── templates/ ├── templates/ # Global base templates with navigation and footer ├── static/ # Global static files (CSS, JS, images) └── exam_system/ # Main Django project configuration ├── settings.py ├── urls.py └── wsgi.py ``` </pre>
 
 ---
 
